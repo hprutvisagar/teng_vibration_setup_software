@@ -1,0 +1,13 @@
+my_qt_app/
+├── main.py
+├── ui/
+│   ├── main_window.py
+│   ├── connections_tab.py
+│   ├── configurations_tab.py
+│   └── data_tab.py
+├── logic/
+│   ├── oscilloscope.py
+│   ├── function_generator.py
+│   └── accelerometer.py
+└── utils/
+    └── resource_manager.py
