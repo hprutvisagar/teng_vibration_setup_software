@@ -1,23 +1,20 @@
-import pyvisa
+# resource_manager.py
 
 class ResourceManager:
-    @staticmethod
-    def list_resources():
-        try:
-            rm = pyvisa.ResourceManager()
-            resources = rm.list_resources()
-            return resources
-        except Exception as e:
-            print(f"Error listing resources: {e}")
-            return []
+    _instance = None
 
     @staticmethod
-    def get_resource_info(resource):
-        try:
-            rm = pyvisa.ResourceManager()
-            instrument = rm.open_resource(resource)
-            info = instrument.query("*IDN?")
-            return info
-        except Exception as e:
-            print(f"Error getting resource info: {e}")
-            return "Unknown"
+    def get_instance():
+        if ResourceManager._instance is None:
+            ResourceManager._instance = ResourceManager()
+        return ResourceManager._instance
+
+    def __init__(self):
+        if ResourceManager._instance is not None:
+            raise Exception("This class is a singleton!")
+        # Initialize pyvisa ResourceManager
+        import pyvisa
+        self.rm = pyvisa.ResourceManager()
+
+    def list_resources(self):
+        return self.rm.list_resources()
