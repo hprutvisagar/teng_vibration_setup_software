@@ -6,12 +6,17 @@ class ConnectionsTab(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
 
-        # Main layout: Split screen vertically into two equal sections
+        # Main layout: Use QSplitter to create two equal sections
         main_layout = QtWidgets.QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins for a clean split
+        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins for a clean layout
 
+        # Create QSplitter
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        
         # Left section: Identified Devices
-        left_section = QtWidgets.QVBoxLayout()
+        left_widget = QtWidgets.QWidget()
+        left_section = QtWidgets.QVBoxLayout(left_widget)
+        
         identified_devices_group = QtWidgets.QGroupBox("Identified Devices")
         identified_devices_layout = QtWidgets.QVBoxLayout()
 
@@ -22,9 +27,9 @@ class ConnectionsTab(QtWidgets.QWidget):
         self.resources_table.setColumnCount(2)
         self.resources_table.setHorizontalHeaderLabels(["Resource Address", "IDN"])
         self.resources_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        
+
         # Set column widths
-        self.resources_table.setColumnWidth(0, 50 * 10)  # 50 characters width, estimated at 10 pixels per character
+        self.resources_table.setColumnWidth(0, 25 * 10)  # 50 characters width, estimated at 10 pixels per character
         self.resources_table.setColumnWidth(1, 400)  # Adjust as needed for the second column
 
         # Set a maximum number of rows
@@ -39,15 +44,19 @@ class ConnectionsTab(QtWidgets.QWidget):
         identified_devices_layout.addWidget(self.identify_button)
         identified_devices_layout.addWidget(self.resources_table)
         identified_devices_group.setLayout(identified_devices_layout)
-        
+
         # Set the maximum height of the group box
         identified_devices_group.setMaximumHeight(300)  # Adjust this value as needed
 
         left_section.addWidget(identified_devices_group)
         left_section.addStretch(1)  # Add stretch to push content to the top
 
+        left_widget.setLayout(left_section)
+
         # Right section: Instruments
-        right_section = QtWidgets.QVBoxLayout()
+        right_widget = QtWidgets.QWidget()
+        right_section = QtWidgets.QVBoxLayout(right_widget)
+        
         instruments_group = QtWidgets.QGroupBox("Instruments")
         instruments_layout = QtWidgets.QVBoxLayout()
 
@@ -59,25 +68,39 @@ class ConnectionsTab(QtWidgets.QWidget):
 
         for instrument in self.instruments.keys():
             group_box = QtWidgets.QGroupBox(instrument)
-            group_layout = QtWidgets.QFormLayout()
+            group_layout = QtWidgets.QVBoxLayout()
             
-            # Device dropdown
-            device_dropdown = QtWidgets.QComboBox()
-            self.instruments[instrument]['dropdown'] = device_dropdown
-            group_layout.addRow("Device:", device_dropdown)
+            # Editable line edit for device address
+            device_edit = QtWidgets.QLineEdit()
+            self.instruments[instrument]['line_edit'] = device_edit
+            group_layout.addWidget(QtWidgets.QLabel("Device Address:"))
+            group_layout.addWidget(device_edit)
             
+            # Button layout
+            button_layout = QtWidgets.QHBoxLayout()
+
             # Select button
             select_button = QtWidgets.QPushButton("Select")
+            select_button.setFixedSize(80, 30)  # Set fixed size
             self.instruments[instrument]['button'] = select_button
             select_button.clicked.connect(lambda checked, inst=instrument: self.select_device(inst))
-            group_layout.addWidget(select_button)
+            button_layout.addWidget(select_button)
             
             # Disconnect button
             disconnect_button = QtWidgets.QPushButton("Disconnect")
+            disconnect_button.setFixedSize(100, 30)  # Set fixed size
             self.instruments[instrument]['disconnect'] = disconnect_button
             disconnect_button.clicked.connect(lambda checked, inst=instrument: self.disconnect_device(inst))
             disconnect_button.setEnabled(False)
-            group_layout.addWidget(disconnect_button)
+            button_layout.addWidget(disconnect_button)
+
+            # Add button layout to a container
+            button_container = QtWidgets.QWidget()
+            button_container.setLayout(button_layout)
+
+            # Add button container to group layout with stretch factor
+            group_layout.addStretch(1)  # Stretch before the buttons to push them to the bottom
+            group_layout.addWidget(button_container)
 
             # Add the group box to the layout
             group_box.setLayout(group_layout)
@@ -87,9 +110,15 @@ class ConnectionsTab(QtWidgets.QWidget):
         right_section.addWidget(instruments_group)
         right_section.addStretch(1)  # Add stretch to push content to the top
 
-        # Add sections to the main layout
-        main_layout.addLayout(left_section, stretch=1)
-        main_layout.addLayout(right_section, stretch=1)
+        right_widget.setLayout(right_section)
+
+        # Add widgets to the splitter
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setSizes([1, 1])  # Make both sections equal size initially
+
+        # Add splitter to the main layout
+        main_layout.addWidget(splitter)
 
         # Connect button actions
         self.identify_button.clicked.connect(self.identify_resources)
@@ -101,30 +130,28 @@ class ConnectionsTab(QtWidgets.QWidget):
             "Accelerometer": None
         }
 
-    def update_device_dropdowns(self):
+    def update_device_line_edits(self):
         try:
             resources = ResourceManager().list_resources()
             unique_resources = list(set(resources))  # Remove duplicates
             for instrument, controls in self.instruments.items():
-                dropdown = controls['dropdown']
-                current_selection = dropdown.currentText()
-                dropdown.clear()
-                dropdown.addItem("Select a device")  # Default text
-                dropdown.addItems(unique_resources)
-                # Restore previous selection if still available
-                if current_selection in unique_resources:
-                    dropdown.setCurrentText(current_selection)
+                line_edit = controls['line_edit']
+                current_text = line_edit.text()
+                line_edit.clear()
+                line_edit.setPlaceholderText("Enter device address...")
+                if current_text in unique_resources:
+                    line_edit.setText(current_text)
         except Exception as e:
-            print(f"Error updating device dropdowns: {e}")
+            print(f"Error updating device line edits: {e}")
 
     def select_device(self, instrument):
-        dropdown = self.instruments[instrument]['dropdown']
-        selected_resource = dropdown.currentText()
-        if selected_resource and selected_resource != "Select a device":
+        line_edit = self.instruments[instrument]['line_edit']
+        selected_resource = line_edit.text()
+        if selected_resource:
             self.selected_instruments[instrument] = selected_resource
             print(f"Selected {instrument}: {selected_resource}")  # Debugging line
             self.remove_resource_from_table(selected_resource)
-            dropdown.setEnabled(False)
+            line_edit.setEnabled(False)
             self.instruments[instrument]['button'].setEnabled(False)
             self.instruments[instrument]['disconnect'].setEnabled(True)
 
@@ -133,7 +160,7 @@ class ConnectionsTab(QtWidgets.QWidget):
         if selected_resource:
             self.add_resource_to_table(selected_resource)
             self.selected_instruments[instrument] = None
-            self.instruments[instrument]['dropdown'].setEnabled(True)
+            self.instruments[instrument]['line_edit'].setEnabled(True)
             self.instruments[instrument]['button'].setEnabled(True)
             self.instruments[instrument]['disconnect'].setEnabled(False)
             print(f"Disconnected {instrument}: {selected_resource}")  # Debugging line
@@ -155,8 +182,8 @@ class ConnectionsTab(QtWidgets.QWidget):
                 
                 self.resources_table.setItem(row_position, 0, resource_item)
                 self.resources_table.setItem(row_position, 1, idn_item)
-            # Update dropdowns after identifying resources
-            self.update_device_dropdowns()
+            # Update line edits after identifying resources
+            self.update_device_line_edits()
         except Exception as e:
             print(f"Error identifying resources: {e}")  # Debugging line
 
