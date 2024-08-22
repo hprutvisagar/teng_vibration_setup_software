@@ -89,12 +89,14 @@ class MainWindow(QMainWindow):
                 self.ui.connected_devices_table.setItem(row, 0, resource_item)
 
                 try:
-                    instrument = self.rm.open_resource(resource)
-                    idn_string = instrument.query("*IDN?")
+                    # self.instrument = None
+                    self.instrument = self.rm.open_resource(resource)
+                    idn_string = self.instrument.query("*IDN?")
+                    self.instrument.close()
                 except Exception as e:
                     idn_string = f"Error: {str(e)}"
-                finally:
-                    instrument.close()
+                # finally:
+                #     self.instrument.close()
 
                 # Add the IDN string to the second column
                 idn_item = QTableWidgetItem(idn_string)
@@ -243,6 +245,8 @@ class MainWindow(QMainWindow):
                 rtb.write_str(f"TRIG:A:SOUR CH1")
                 rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")
                 rtb.query_opc()
+
+                print('hi')
 
                 # Fetch data from checked channels
                 self.scope_data = {}
