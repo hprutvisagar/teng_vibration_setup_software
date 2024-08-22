@@ -62,20 +62,20 @@ class Ui_main_widget(object):
         font2.setPointSize(14)
         font2.setBold(False)
         self.fun_config_box.setFont(font2)
-        self.widget = QWidget(self.fun_config_box)
-        self.widget.setObjectName(u"widget")
-        self.widget.setGeometry(QRect(22, 30, 451, 139))
-        self.gridLayout_3 = QGridLayout(self.widget)
+        self.layoutWidget = QWidget(self.fun_config_box)
+        self.layoutWidget.setObjectName(u"layoutWidget")
+        self.layoutWidget.setGeometry(QRect(22, 30, 451, 139))
+        self.gridLayout_3 = QGridLayout(self.layoutWidget)
         self.gridLayout_3.setObjectName(u"gridLayout_3")
         self.gridLayout_3.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_10 = QHBoxLayout()
         self.horizontalLayout_10.setObjectName(u"horizontalLayout_10")
-        self.fun_id_label = QLabel(self.widget)
+        self.fun_id_label = QLabel(self.layoutWidget)
         self.fun_id_label.setObjectName(u"fun_id_label")
 
         self.horizontalLayout_10.addWidget(self.fun_id_label)
 
-        self.fun_id_input = QLineEdit(self.widget)
+        self.fun_id_input = QLineEdit(self.layoutWidget)
         self.fun_id_input.setObjectName(u"fun_id_input")
 
         self.horizontalLayout_10.addWidget(self.fun_id_input)
@@ -85,13 +85,13 @@ class Ui_main_widget(object):
 
         self.horizontalLayout_2 = QHBoxLayout()
         self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.waveform_type_label = QLabel(self.widget)
+        self.waveform_type_label = QLabel(self.layoutWidget)
         self.waveform_type_label.setObjectName(u"waveform_type_label")
         self.waveform_type_label.setFont(font2)
 
         self.horizontalLayout_2.addWidget(self.waveform_type_label)
 
-        self.fun_config_waveform_input = QComboBox(self.widget)
+        self.fun_config_waveform_input = QComboBox(self.layoutWidget)
         self.fun_config_waveform_input.addItem("")
         self.fun_config_waveform_input.addItem("")
         self.fun_config_waveform_input.addItem("")
@@ -106,13 +106,13 @@ class Ui_main_widget(object):
 
         self.horizontalLayout_3 = QHBoxLayout()
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.freq_input_label = QLabel(self.widget)
+        self.freq_input_label = QLabel(self.layoutWidget)
         self.freq_input_label.setObjectName(u"freq_input_label")
         self.freq_input_label.setFont(font2)
 
         self.horizontalLayout_3.addWidget(self.freq_input_label)
 
-        self.fun_config_freq_input = QLineEdit(self.widget)
+        self.fun_config_freq_input = QLineEdit(self.layoutWidget)
         self.fun_config_freq_input.setObjectName(u"fun_config_freq_input")
         self.fun_config_freq_input.setFont(font2)
 
@@ -123,13 +123,13 @@ class Ui_main_widget(object):
 
         self.horizontalLayout = QHBoxLayout()
         self.horizontalLayout.setObjectName(u"horizontalLayout")
-        self.vpp_label = QLabel(self.widget)
+        self.vpp_label = QLabel(self.layoutWidget)
         self.vpp_label.setObjectName(u"vpp_label")
         self.vpp_label.setFont(font2)
 
         self.horizontalLayout.addWidget(self.vpp_label)
 
-        self.fun_config_vpp_input = QLineEdit(self.widget)
+        self.fun_config_vpp_input = QLineEdit(self.layoutWidget)
         self.fun_config_vpp_input.setObjectName(u"fun_config_vpp_input")
         self.fun_config_vpp_input.setFont(font1)
         self.fun_config_vpp_input.setInputMethodHints(Qt.InputMethodHint.ImhDigitsOnly)
@@ -139,13 +139,13 @@ class Ui_main_widget(object):
 
         self.gridLayout_3.addLayout(self.horizontalLayout, 2, 1, 1, 1)
 
-        self.fun_save_button = QPushButton(self.widget)
+        self.fun_save_button = QPushButton(self.layoutWidget)
         self.fun_save_button.setObjectName(u"fun_save_button")
         self.fun_save_button.setFont(font2)
 
         self.gridLayout_3.addWidget(self.fun_save_button, 3, 0, 1, 1)
 
-        self.fun_config_send_button = QPushButton(self.widget)
+        self.fun_config_send_button = QPushButton(self.layoutWidget)
         self.fun_config_send_button.setObjectName(u"fun_config_send_button")
         self.fun_config_send_button.setFont(font2)
 
@@ -155,120 +155,103 @@ class Ui_main_widget(object):
         self.scope_config_box.setObjectName(u"scope_config_box")
         self.scope_config_box.setGeometry(QRect(20, 230, 491, 181))
         self.scope_config_box.setFont(font2)
-        self.widget1 = QWidget(self.scope_config_box)
-        self.widget1.setObjectName(u"widget1")
-        self.widget1.setGeometry(QRect(21, 30, 451, 139))
-        self.gridLayout_5 = QGridLayout(self.widget1)
+        self.widget = QWidget(self.scope_config_box)
+        self.widget.setObjectName(u"widget")
+        self.widget.setGeometry(QRect(21, 32, 451, 139))
+        self.gridLayout_5 = QGridLayout(self.widget)
         self.gridLayout_5.setObjectName(u"gridLayout_5")
         self.gridLayout_5.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_4 = QHBoxLayout()
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.scope_id_label = QLabel(self.widget1)
+        self.scope_id_label = QLabel(self.widget)
         self.scope_id_label.setObjectName(u"scope_id_label")
 
         self.horizontalLayout_4.addWidget(self.scope_id_label)
 
-        self.scope_config_id_input = QLineEdit(self.widget1)
+        self.scope_config_id_input = QLineEdit(self.widget)
         self.scope_config_id_input.setObjectName(u"scope_config_id_input")
 
         self.horizontalLayout_4.addWidget(self.scope_config_id_input)
 
 
-        self.gridLayout_5.addLayout(self.horizontalLayout_4, 0, 0, 1, 3)
+        self.gridLayout_5.addLayout(self.horizontalLayout_4, 0, 0, 1, 2)
 
         self.horizontalLayout_5 = QHBoxLayout()
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
-        self.scope_xmin_label = QLabel(self.widget1)
-        self.scope_xmin_label.setObjectName(u"scope_xmin_label")
-        self.scope_xmin_label.setFont(font2)
+        self.scope_xrange_label = QLabel(self.widget)
+        self.scope_xrange_label.setObjectName(u"scope_xrange_label")
+        self.scope_xrange_label.setFont(font2)
 
-        self.horizontalLayout_5.addWidget(self.scope_xmin_label)
+        self.horizontalLayout_5.addWidget(self.scope_xrange_label)
 
-        self.scope_config_xmin_input = QLineEdit(self.widget1)
-        self.scope_config_xmin_input.setObjectName(u"scope_config_xmin_input")
-        self.scope_config_xmin_input.setFont(font2)
+        self.scope_config_xrange_input = QLineEdit(self.widget)
+        self.scope_config_xrange_input.setObjectName(u"scope_config_xrange_input")
+        self.scope_config_xrange_input.setFont(font2)
 
-        self.horizontalLayout_5.addWidget(self.scope_config_xmin_input)
-
-
-        self.gridLayout_5.addLayout(self.horizontalLayout_5, 1, 0, 1, 2)
-
-        self.horizontalLayout_6 = QHBoxLayout()
-        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
-        self.scope_xmax_label = QLabel(self.widget1)
-        self.scope_xmax_label.setObjectName(u"scope_xmax_label")
-        self.scope_xmax_label.setFont(font2)
-
-        self.horizontalLayout_6.addWidget(self.scope_xmax_label)
-
-        self.scope_config_xmax_input = QLineEdit(self.widget1)
-        self.scope_config_xmax_input.setObjectName(u"scope_config_xmax_input")
-        self.scope_config_xmax_input.setFont(font2)
-
-        self.horizontalLayout_6.addWidget(self.scope_config_xmax_input)
+        self.horizontalLayout_5.addWidget(self.scope_config_xrange_input)
 
 
-        self.gridLayout_5.addLayout(self.horizontalLayout_6, 1, 2, 1, 1)
+        self.gridLayout_5.addLayout(self.horizontalLayout_5, 1, 0, 1, 1)
 
         self.horizontalLayout_7 = QHBoxLayout()
         self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
-        self.scope_yrange_label = QLabel(self.widget1)
+        self.scope_yrange_label = QLabel(self.widget)
         self.scope_yrange_label.setObjectName(u"scope_yrange_label")
         self.scope_yrange_label.setFont(font2)
 
         self.horizontalLayout_7.addWidget(self.scope_yrange_label)
 
-        self.scope_config_yrange_input = QLineEdit(self.widget1)
+        self.scope_config_yrange_input = QLineEdit(self.widget)
         self.scope_config_yrange_input.setObjectName(u"scope_config_yrange_input")
         self.scope_config_yrange_input.setFont(font2)
 
         self.horizontalLayout_7.addWidget(self.scope_config_yrange_input)
 
 
-        self.gridLayout_5.addLayout(self.horizontalLayout_7, 2, 0, 1, 1)
+        self.gridLayout_5.addLayout(self.horizontalLayout_7, 1, 1, 1, 1)
 
         self.horizontalLayout_9 = QHBoxLayout()
         self.horizontalLayout_9.setObjectName(u"horizontalLayout_9")
-        self.scope_trigger_label = QLabel(self.widget1)
+        self.scope_trigger_label = QLabel(self.widget)
         self.scope_trigger_label.setObjectName(u"scope_trigger_label")
         self.scope_trigger_label.setFont(font2)
 
         self.horizontalLayout_9.addWidget(self.scope_trigger_label)
 
-        self.scope_config_trigger_input = QLineEdit(self.widget1)
+        self.scope_config_trigger_input = QLineEdit(self.widget)
         self.scope_config_trigger_input.setObjectName(u"scope_config_trigger_input")
         self.scope_config_trigger_input.setFont(font1)
 
         self.horizontalLayout_9.addWidget(self.scope_config_trigger_input)
 
 
-        self.gridLayout_5.addLayout(self.horizontalLayout_9, 2, 1, 1, 2)
+        self.gridLayout_5.addLayout(self.horizontalLayout_9, 2, 0, 1, 2)
 
-        self.scope_config_save_button = QPushButton(self.widget1)
+        self.scope_config_save_button = QPushButton(self.widget)
         self.scope_config_save_button.setObjectName(u"scope_config_save_button")
         self.scope_config_save_button.setFont(font2)
 
-        self.gridLayout_5.addWidget(self.scope_config_save_button, 3, 0, 1, 3)
+        self.gridLayout_5.addWidget(self.scope_config_save_button, 3, 0, 1, 2)
 
         self.accel_config_box = QGroupBox(self.config_box)
         self.accel_config_box.setObjectName(u"accel_config_box")
         self.accel_config_box.setGeometry(QRect(20, 430, 491, 121))
         self.accel_config_box.setFont(font2)
-        self.widget2 = QWidget(self.accel_config_box)
-        self.widget2.setObjectName(u"widget2")
-        self.widget2.setGeometry(QRect(20, 30, 451, 71))
-        self.gridLayout_4 = QGridLayout(self.widget2)
+        self.layoutWidget1 = QWidget(self.accel_config_box)
+        self.layoutWidget1.setObjectName(u"layoutWidget1")
+        self.layoutWidget1.setGeometry(QRect(20, 30, 451, 71))
+        self.gridLayout_4 = QGridLayout(self.layoutWidget1)
         self.gridLayout_4.setObjectName(u"gridLayout_4")
         self.gridLayout_4.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_8 = QHBoxLayout()
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
-        self.accel_com_label = QLabel(self.widget2)
+        self.accel_com_label = QLabel(self.layoutWidget1)
         self.accel_com_label.setObjectName(u"accel_com_label")
         self.accel_com_label.setFont(font2)
 
         self.horizontalLayout_8.addWidget(self.accel_com_label)
 
-        self.accel_config_com_input = QLineEdit(self.widget2)
+        self.accel_config_com_input = QLineEdit(self.layoutWidget1)
         self.accel_config_com_input.setObjectName(u"accel_config_com_input")
         self.accel_config_com_input.setFont(font2)
 
@@ -277,19 +260,19 @@ class Ui_main_widget(object):
 
         self.gridLayout_4.addLayout(self.horizontalLayout_8, 0, 0, 1, 3)
 
-        self.accel_status_check_button = QPushButton(self.widget2)
+        self.accel_status_check_button = QPushButton(self.layoutWidget1)
         self.accel_status_check_button.setObjectName(u"accel_status_check_button")
         self.accel_status_check_button.setFont(font2)
 
         self.gridLayout_4.addWidget(self.accel_status_check_button, 1, 0, 1, 1)
 
-        self.accel_com_status_label = QLabel(self.widget2)
+        self.accel_com_status_label = QLabel(self.layoutWidget1)
         self.accel_com_status_label.setObjectName(u"accel_com_status_label")
         self.accel_com_status_label.setFont(font2)
 
         self.gridLayout_4.addWidget(self.accel_com_status_label, 1, 1, 1, 1)
 
-        self.accel_config_save_button = QPushButton(self.widget2)
+        self.accel_config_save_button = QPushButton(self.layoutWidget1)
         self.accel_config_save_button.setObjectName(u"accel_config_save_button")
 
         self.gridLayout_4.addWidget(self.accel_config_save_button, 1, 2, 1, 1)
@@ -300,50 +283,50 @@ class Ui_main_widget(object):
         self.scope_box.setFont(font2)
         self.scope_box.setFlat(False)
         self.scope_box.setCheckable(False)
-        self.layoutWidget = QWidget(self.scope_box)
-        self.layoutWidget.setObjectName(u"layoutWidget")
-        self.layoutWidget.setGeometry(QRect(21, 31, 1261, 481))
-        self.layoutWidget.setFont(font2)
-        self.gridLayout = QGridLayout(self.layoutWidget)
+        self.layoutWidget2 = QWidget(self.scope_box)
+        self.layoutWidget2.setObjectName(u"layoutWidget2")
+        self.layoutWidget2.setGeometry(QRect(21, 31, 1261, 481))
+        self.layoutWidget2.setFont(font2)
+        self.gridLayout = QGridLayout(self.layoutWidget2)
         self.gridLayout.setObjectName(u"gridLayout")
         self.gridLayout.setContentsMargins(0, 0, 0, 0)
-        self.scope_channel3 = QCheckBox(self.layoutWidget)
+        self.scope_channel3 = QCheckBox(self.layoutWidget2)
         self.scope_channel3.setObjectName(u"scope_channel3")
         self.scope_channel3.setFont(font2)
 
         self.gridLayout.addWidget(self.scope_channel3, 0, 2, 1, 1)
 
-        self.scope_channel2 = QCheckBox(self.layoutWidget)
+        self.scope_channel2 = QCheckBox(self.layoutWidget2)
         self.scope_channel2.setObjectName(u"scope_channel2")
         self.scope_channel2.setFont(font2)
 
         self.gridLayout.addWidget(self.scope_channel2, 0, 1, 1, 1)
 
-        self.graphicsView = QGraphicsView(self.layoutWidget)
-        self.graphicsView.setObjectName(u"graphicsView")
-        self.graphicsView.setFont(font2)
+        self.scope_graphics_view = QGraphicsView(self.layoutWidget2)
+        self.scope_graphics_view.setObjectName(u"scope_graphics_view")
+        self.scope_graphics_view.setFont(font2)
 
-        self.gridLayout.addWidget(self.graphicsView, 1, 0, 1, 4)
+        self.gridLayout.addWidget(self.scope_graphics_view, 1, 0, 1, 4)
 
-        self.scope_channel1 = QCheckBox(self.layoutWidget)
+        self.scope_channel1 = QCheckBox(self.layoutWidget2)
         self.scope_channel1.setObjectName(u"scope_channel1")
         self.scope_channel1.setFont(font2)
 
         self.gridLayout.addWidget(self.scope_channel1, 0, 0, 1, 1)
 
-        self.scope_channel4 = QCheckBox(self.layoutWidget)
+        self.scope_channel4 = QCheckBox(self.layoutWidget2)
         self.scope_channel4.setObjectName(u"scope_channel4")
         self.scope_channel4.setFont(font1)
 
         self.gridLayout.addWidget(self.scope_channel4, 0, 3, 1, 1)
 
-        self.scope__fetch_button = QPushButton(self.layoutWidget)
-        self.scope__fetch_button.setObjectName(u"scope__fetch_button")
-        self.scope__fetch_button.setFont(font2)
+        self.scope_fetch_button = QPushButton(self.layoutWidget2)
+        self.scope_fetch_button.setObjectName(u"scope_fetch_button")
+        self.scope_fetch_button.setFont(font2)
 
-        self.gridLayout.addWidget(self.scope__fetch_button, 2, 0, 1, 2)
+        self.gridLayout.addWidget(self.scope_fetch_button, 2, 0, 1, 2)
 
-        self.scope_data_save_button = QPushButton(self.layoutWidget)
+        self.scope_data_save_button = QPushButton(self.layoutWidget2)
         self.scope_data_save_button.setObjectName(u"scope_data_save_button")
         self.scope_data_save_button.setFont(font2)
 
@@ -353,31 +336,31 @@ class Ui_main_widget(object):
         self.accel_box.setObjectName(u"accel_box")
         self.accel_box.setGeometry(QRect(590, 550, 1301, 381))
         self.accel_box.setFont(font)
-        self.widget3 = QWidget(self.accel_box)
-        self.widget3.setObjectName(u"widget3")
-        self.widget3.setGeometry(QRect(20, 30, 1271, 341))
-        self.gridLayout_2 = QGridLayout(self.widget3)
+        self.layoutWidget3 = QWidget(self.accel_box)
+        self.layoutWidget3.setObjectName(u"layoutWidget3")
+        self.layoutWidget3.setGeometry(QRect(20, 30, 1271, 341))
+        self.gridLayout_2 = QGridLayout(self.layoutWidget3)
         self.gridLayout_2.setObjectName(u"gridLayout_2")
         self.gridLayout_2.setContentsMargins(0, 0, 0, 0)
-        self.accel_graph = QGraphicsView(self.widget3)
+        self.accel_graph = QGraphicsView(self.layoutWidget3)
         self.accel_graph.setObjectName(u"accel_graph")
         self.accel_graph.setFont(font)
 
         self.gridLayout_2.addWidget(self.accel_graph, 0, 0, 1, 2)
 
-        self.accel_fft = QGraphicsView(self.widget3)
+        self.accel_fft = QGraphicsView(self.layoutWidget3)
         self.accel_fft.setObjectName(u"accel_fft")
         self.accel_fft.setFont(font)
 
         self.gridLayout_2.addWidget(self.accel_fft, 1, 0, 1, 2)
 
-        self.accel_fetch_button = QPushButton(self.widget3)
+        self.accel_fetch_button = QPushButton(self.layoutWidget3)
         self.accel_fetch_button.setObjectName(u"accel_fetch_button")
         self.accel_fetch_button.setFont(font)
 
         self.gridLayout_2.addWidget(self.accel_fetch_button, 2, 0, 1, 1)
 
-        self.accel_save_button = QPushButton(self.widget3)
+        self.accel_save_button = QPushButton(self.layoutWidget3)
         self.accel_save_button.setObjectName(u"accel_save_button")
         self.accel_save_button.setFont(font)
 
@@ -452,8 +435,7 @@ class Ui_main_widget(object):
         self.fun_config_send_button.setText(QCoreApplication.translate("main_widget", u"SEND", None))
         self.scope_config_box.setTitle(QCoreApplication.translate("main_widget", u"Oscilloscope", None))
         self.scope_id_label.setText(QCoreApplication.translate("main_widget", u"DEVICE ID", None))
-        self.scope_xmin_label.setText(QCoreApplication.translate("main_widget", u"X MIN", None))
-        self.scope_xmax_label.setText(QCoreApplication.translate("main_widget", u"X MAX", None))
+        self.scope_xrange_label.setText(QCoreApplication.translate("main_widget", u"X RANGE", None))
         self.scope_yrange_label.setText(QCoreApplication.translate("main_widget", u"Y RANGE", None))
         self.scope_trigger_label.setText(QCoreApplication.translate("main_widget", u"TRIGGER POS", None))
         self.scope_config_save_button.setText(QCoreApplication.translate("main_widget", u"SAVE", None))
@@ -467,7 +449,7 @@ class Ui_main_widget(object):
         self.scope_channel2.setText(QCoreApplication.translate("main_widget", u"Channel 2", None))
         self.scope_channel1.setText(QCoreApplication.translate("main_widget", u"Channel 1", None))
         self.scope_channel4.setText(QCoreApplication.translate("main_widget", u"Channel 4", None))
-        self.scope__fetch_button.setText(QCoreApplication.translate("main_widget", u"FETCH DATA", None))
+        self.scope_fetch_button.setText(QCoreApplication.translate("main_widget", u"FETCH DATA", None))
         self.scope_data_save_button.setText(QCoreApplication.translate("main_widget", u"SAVE", None))
         self.accel_box.setTitle(QCoreApplication.translate("main_widget", u"Accelerometer data", None))
         self.accel_fetch_button.setText(QCoreApplication.translate("main_widget", u"FETCH DATA", None))
