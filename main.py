@@ -4,12 +4,11 @@ import pyvisa
 import datetime
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from ui_form import Ui_main_widget  # Import the generated class
 from RsInstrument import RsInstrument
-from PySide6.QtCore import Qt
 
 class PlotWidget(QWidget):
     def __init__(self, parent=None):
@@ -34,6 +33,17 @@ class PlotWidget(QWidget):
         self.ax.legend()
         self.canvas.draw()  # Redraw the canvas with the new plot
 
+    def update_plot(self, channel_data):
+        self.ax.clear()
+        for channel, data in channel_data.items():
+            self.ax.plot(data['time_data'], data['waveform'], label=f'Channel {channel}')
+        self.ax.set_xlabel('Time (s)')
+        self.ax.set_ylabel('Voltage (V)')
+        self.ax.set_title('Oscilloscope Waveforms')
+        self.ax.grid(True)
+        self.ax.legend()
+        self.canvas.draw()
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -55,8 +65,13 @@ class MainWindow(QMainWindow):
         self.ui.scope_config_save_button.clicked.connect(self.save_scope_config)
         self.ui.accel_status_check_button.clicked.connect(self.accel_config_check_status)
         self.ui.accel_config_save_button.clicked.connect(self.accel_save)
-        self.ui.scope_fetch_button.clicked.connect(self.scope_fetch_data)
+        self.ui.scope_fetch_button.clicked.connect(self.start_real_time_plotting)
         self.ui.scope_data_save_button.clicked.connect(self.scope_save_data)
+
+        # Initialize QTimer for real-time plotting
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.fetch_and_update_data)
+        self.timer.setInterval(1000)  # Fetch data every 1000 milliseconds (1 second)
 
     def set_main_widget(self, widget):
         self.setCentralWidget(widget)
@@ -220,61 +235,51 @@ class MainWindow(QMainWindow):
     def accel_save(self):
         self.accel_config_check_status()
 
-    def scope_fetch_data(self):
-        if self.save_scope_config():
-            try:
-                channels = [
-                    self.ui.scope_channel1.isChecked(),
-                    self.ui.scope_channel2.isChecked(),
-                    self.ui.scope_channel3.isChecked(),
-                    self.ui.scope_channel4.isChecked()
-                ]
-                
-                # Connect to oscilloscope
-                rtb = RsInstrument(self.scope_id, True, True)
-                rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
-                for i, ch in enumerate(channels, start=1):
-                    if ch:
-                        rtb.write_str(f"CHAN{i}:RANG {self.scope_yrange}")
-                        rtb.write_str(f"CHAN{i}:OFFS 0.0")
-                        rtb.write_str(f"CHAN{i}:COUP ACL")
-                        rtb.write_str(f"CHAN{i}:STAT ON")
-                    else:
-                        rtb.write_str(f"CHAN{i}:STAT OFF")
+    def start_real_time_plotting(self):
+        if not self.save_scope_config():
+            return
 
-                # Trigger Settings
-                rtb.write_str("TRIG:A:MODE AUTO")
-                rtb.write_str(f"TRIG:A:TYPE EDGE;:TRIG:A:EDGE:SLOP POS")
-                rtb.write_str(f"TRIG:A:SOUR CH1")
-                rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")
-                rtb.query_opc()
+        # Create and set the PlotWidget
+        self.plot_widget = PlotWidget()
+        self.set_main_widget(self.plot_widget)
 
-                # Fetch data from checked channels
-                self.scope_data = {}
-                for i, ch in enumerate(channels, start=1):
-                    if ch:
-                        rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
-                        waveform = rtb.query_bin_or_ascii_float_list('FORM ASC;:CHAN{i}:DATA?')
-                        x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
-                        x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-                        time_data = np.arange(0, len(waveform)) * x_increment + x_origin
-                        self.scope_data[f'Channel_{i}'] = pd.DataFrame({
-                            'time_data': time_data,
-                            'waveform': waveform
-                        })
-                rtb.close()
+        # Start the timer to fetch data periodically
+        self.timer.start()
+        self.print_message_to_output("Real-time plotting started.")
 
-                # Create and set the PlotWidget
-                self.plot_widget = PlotWidget()
-                self.set_main_widget(self.plot_widget)
+    def fetch_and_update_data(self):
+        try:
+            # Connect to oscilloscope
+            rtb = RsInstrument(self.scope_id, True, True)
+            rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+            
+            channels = [
+                self.ui.scope_channel1.isChecked(),
+                self.ui.scope_channel2.isChecked(),
+                self.ui.scope_channel3.isChecked(),
+                self.ui.scope_channel4.isChecked()
+            ]
+            
+            # Fetch data from checked channels
+            scope_data = {}
+            for i, ch in enumerate(channels, start=1):
+                if ch:
+                    rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
+                    waveform = rtb.query_bin_or_ascii_float_list('FORM ASC;:CHAN{i}:DATA?')
+                    x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
+                    x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+                    time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                    scope_data[f'Channel_{i}'] = pd.DataFrame({
+                        'time_data': time_data,
+                        'waveform': waveform
+                    })
+            rtb.close()
 
-                # Plot data
-                self.plot_widget.plot_data(self.scope_data)
-
-            except Exception as e:
-                self.print_message_to_output(f"Error: {str(e)}")
-        else:
-            self.print_message_to_output("Missing scope parameters!")
+            # Update the plot with new data
+            self.plot_widget.update_plot(scope_data)
+        
+        except Exception as e:
+            self.print_message_to_output(f"Error: {str(e)}")
 
     def scope_save_data(self):
         if self.scope_data:
@@ -289,6 +294,5 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_window = MainWindow()  # Create an instance of your MainWindow class
-    # main_window.showMaximized()
     main_window.show()  # Show the main window
     sys.exit(app.exec())  # Start the application loop
