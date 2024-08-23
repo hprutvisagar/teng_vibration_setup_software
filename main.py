@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QMessageBox, QVBoxLayout, QWidget
 from ui_form import Ui_main_widget  # Import the generated class
 from RsInstrument import RsInstrument
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtCore import Qt
 
 class PlotWidget(QWidget):
     def __init__(self, parent=None):
@@ -39,7 +39,10 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.ui = Ui_main_widget()  # Instantiate the UI class
         self.ui.setupUi(self)  # Set up the UI
-
+        
+        self.initUI()
+    
+    def initUI(self):
         # Initialize PyVISA resource manager
         self.rm = pyvisa.ResourceManager()
 
@@ -55,55 +58,67 @@ class MainWindow(QMainWindow):
         self.ui.scope_fetch_button.clicked.connect(self.scope_fetch_data)
         self.ui.scope_data_save_button.clicked.connect(self.scope_save_data)
 
-    ## essential methods defined here
-    def print_message_to_output(self,message):
+    def set_main_widget(self, widget):
+        self.setCentralWidget(widget)
+
+    def print_message_to_output(self, message):
         self.ui.output_message.clear()
         self.ui.output_message.setPlainText(message)
 
-    ## Identify section definitions
     def identify_and_print_devices(self):
-        # Get the list of connected devices
         resources = self.rm.list_resources()
-        resources = [x for x in set(resources)]  # eliminates duplicates
+        resources = list(set(resources))  # Eliminate duplicates
         
         # Clear the table before populating it
         self.ui.connected_devices_table.clearContents()
         self.ui.connected_devices_table.setRowCount(len(resources))
         self.ui.connected_devices_table.setColumnCount(2)
         self.ui.connected_devices_table.setHorizontalHeaderLabels(["Resource ID", "Resource Identification"])
-        self.ui.connected_devices_table.setColumnWidth(0,200)
+        self.ui.connected_devices_table.setColumnWidth(0, 200)
 
         # Set the second column to take up the remaining space
         self.ui.connected_devices_table.horizontalHeader().setStretchLastSection(True)
 
-        if len(resources) == 0:
-            # If no resources are found, display a message in the first row
-            print('no devices connected')
+        identified_resources = []
+
+        for resource in resources:
+            close_resource = True
+            try:
+                self.instrument = self.rm.open_resource(resource)
+                idn_string = self.instrument.query("*IDN?")
+                if idn_string.strip():  # Ensure IDN string is not empty
+                    identified_resources.append((resource, idn_string))
+                    close_resource = False
+            
+            except Exception as e:
+                print(f"Error with resource {resource}: {str(e)}")
+            
+            finally:
+                if close_resource:
+                    try:
+                        self.instrument.close()
+                    except Exception as e:
+                        self.print_message_to_output(f"Failed to close resource {resource}: {str(e)}")
+
+        if not identified_resources:
+            self.print_message_to_output("No identifiable devices connected")
             self.ui.connected_devices_table.setRowCount(1)
-            item = QTableWidgetItem("No resources available")
+            item = QTableWidgetItem("No identifiable resources available")
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             self.ui.connected_devices_table.setItem(0, 0, item)
         else:
-        # Populate the table with the list of resources        
-            for row, resource in enumerate(resources):
+            self.ui.connected_devices_table.setRowCount(len(identified_resources))
+            for row, (resource, idn_string) in enumerate(identified_resources):
                 resource_item = QTableWidgetItem(resource)
+                resource_item.setFlags(resource_item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
                 self.ui.connected_devices_table.setItem(row, 0, resource_item)
 
-                try:
-                    # self.instrument = None
-                    self.instrument = self.rm.open_resource(resource)
-                    idn_string = self.instrument.query("*IDN?")
-                    self.instrument.close()
-                except Exception as e:
-                    idn_string = f"Error: {str(e)}"
-                # finally:
-                #     self.instrument.close()
-
-                # Add the IDN string to the second column
                 idn_item = QTableWidgetItem(idn_string)
-                self.ui.connected_devices_table.setItem(row, 1, idn_item)     
-        self.print_message_to_output("resources identification completed!")
+                idn_item.setFlags(idn_item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
+                self.ui.connected_devices_table.setItem(row, 1, idn_item)
 
-    ## function generator definitions
+        self.print_message_to_output("Resources identification completed!")
+
     def save_function_generator_config(self):
         self.fun_id = self.ui.fun_id_input.text()
         self.fun_waveform = self.ui.fun_config_waveform_input.currentText()
@@ -127,12 +142,11 @@ class MainWindow(QMainWindow):
             return True
             
     def send_waveform_to_fun(self):
-
         if not self.save_function_generator_config():
             return
 
         self.waveform_dict = {
-            'Sine' : 'SIN',
+            'Sine': 'SIN',
             'Square': 'SQU',
             'Triangular': 'TRI'
         }
@@ -147,7 +161,6 @@ class MainWindow(QMainWindow):
         finally:
             self.function_generator.close()
 
-    ## oscilloscope definitions
     def save_scope_config(self):
         self.scope_id = self.ui.scope_config_id_input.text()
         self.scope_xrange = self.ui.scope_config_xrange_input.text()
@@ -170,12 +183,8 @@ class MainWindow(QMainWindow):
             self.print_message_to_output("Scope parameters saved!")
             return True
 
-    ## accelerometer definitions
     def accel_config_check_status(self):
         accel_com_text = self.ui.accel_config_com_input.text()
-
-        # if len(accel_com) == 0:
-        #     self.ui.accel_com_status_label.setText("Error!!!")
 
         if not accel_com_text:
             self.ui.accel_com_status_label.setText("Error!!!")
@@ -200,7 +209,6 @@ class MainWindow(QMainWindow):
     def get_com_status(self, com_port):
         try:
             with serial.Serial(com_port, timeout=1) as ser:
-                # Check if the port is readable
                 if ser.in_waiting > 0:
                     return "Active and readable"
                 else:
@@ -213,20 +221,15 @@ class MainWindow(QMainWindow):
         self.accel_config_check_status()
 
     def scope_fetch_data(self):
-        # self.ch1_checked = "checked" if self.ui.scope_channel1.isChecked() else "unchecked"
-        # self.ch2_checked = "checked" if self.ui.scope_channel2.isChecked() else "unchecked"
-        # self.ch3_checked = "checked" if self.ui.scope_channel3.isChecked() else "unchecked"
-        # self.ch4_checked = "checked" if self.ui.scope_channel4.isChecked() else "unchecked"
-
-        # self.print_message_to_output(f"ch1: {self.ch1_checked}, ch2: {self.ch2_checked}, ch3= {self.ch3_checked}")
         if self.save_scope_config():
             try:
                 channels = [
-                self.ui.scope_channel1.isChecked(),
-                self.ui.scope_channel2.isChecked(),
-                self.ui.scope_channel3.isChecked(),
-                self.ui.scope_channel4.isChecked()
+                    self.ui.scope_channel1.isChecked(),
+                    self.ui.scope_channel2.isChecked(),
+                    self.ui.scope_channel3.isChecked(),
+                    self.ui.scope_channel4.isChecked()
                 ]
+                
                 # Connect to oscilloscope
                 rtb = RsInstrument(self.scope_id, True, True)
                 rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
@@ -246,8 +249,6 @@ class MainWindow(QMainWindow):
                 rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")
                 rtb.query_opc()
 
-                print('hi')
-
                 # Fetch data from checked channels
                 self.scope_data = {}
                 for i, ch in enumerate(channels, start=1):
@@ -263,8 +264,9 @@ class MainWindow(QMainWindow):
                         })
                 rtb.close()
 
+                # Create and set the PlotWidget
                 self.plot_widget = PlotWidget()
-                self.setCentralWidget(self.plot_widget)
+                self.set_main_widget(self.plot_widget)
 
                 # Plot data
                 self.plot_widget.plot_data(self.scope_data)
@@ -280,29 +282,13 @@ class MainWindow(QMainWindow):
             for channel, df in self.scope_data.items():
                 filename = f"data_{timestamp}_channel_{channel[-1]}.csv"
                 df.to_csv(filename, index=False)
-            self.identify_and_print_devices("Data fetched and saved successfully.")
+            self.print_message_to_output("Data fetched and saved successfully.")
         else:
-            self.identify_and_print_devices("No data available.")
-
-
-        
-
-        
-
-
-
-
-    #     self.save_function_generator_config() # trying to save the variables here
-
-    #     if not (self.fun_id or self.fun_waveform or self.fun_freq or self.fun_vpp):
-    #         print()
-
-
-        
+            self.print_message_to_output("No data available.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_window = MainWindow()  # Create an instance of your MainWindow class
+    # main_window.showMaximized()
     main_window.show()  # Show the main window
     sys.exit(app.exec())  # Start the application loop
-
