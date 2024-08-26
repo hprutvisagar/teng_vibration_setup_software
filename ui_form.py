@@ -17,9 +17,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QGraphicsView,
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QPushButton, QSizePolicy,
-    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
-    QWidget)
+    QLabel, QLayout, QLineEdit, QPushButton,
+    QSizePolicy, QTableWidget, QTableWidgetItem, QTextEdit,
+    QVBoxLayout, QWidget)
 
 class Ui_main_widget(object):
     def setupUi(self, main_widget):
@@ -83,6 +83,7 @@ class Ui_main_widget(object):
         self.verticalLayout_3 = QVBoxLayout(self.layoutWidget2)
         self.verticalLayout_3.setSpacing(5)
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
+        self.verticalLayout_3.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.verticalLayout_3.setContentsMargins(0, 0, 0, 10)
         self.fun_config_box = QGroupBox(self.layoutWidget2)
         self.fun_config_box.setObjectName(u"fun_config_box")
@@ -317,7 +318,7 @@ class Ui_main_widget(object):
         self.accel_config_box.setFont(font2)
         self.layoutWidget5 = QWidget(self.accel_config_box)
         self.layoutWidget5.setObjectName(u"layoutWidget5")
-        self.layoutWidget5.setGeometry(QRect(20, 30, 451, 71))
+        self.layoutWidget5.setGeometry(QRect(21, 32, 451, 68))
         self.gridLayout_4 = QGridLayout(self.layoutWidget5)
         self.gridLayout_4.setObjectName(u"gridLayout_4")
         self.gridLayout_4.setContentsMargins(0, 0, 0, 0)
@@ -339,30 +340,43 @@ class Ui_main_widget(object):
 
         self.horizontalLayout_8.addWidget(self.accel_config_com_input)
 
+
+        self.gridLayout_4.addLayout(self.horizontalLayout_8, 0, 0, 1, 1)
+
+        self.horizontalLayout_6 = QHBoxLayout()
+        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
         self.com_baud_rate_label = QLabel(self.layoutWidget5)
         self.com_baud_rate_label.setObjectName(u"com_baud_rate_label")
         sizePolicy1.setHeightForWidth(self.com_baud_rate_label.sizePolicy().hasHeightForWidth())
         self.com_baud_rate_label.setSizePolicy(sizePolicy1)
 
-        self.horizontalLayout_8.addWidget(self.com_baud_rate_label)
+        self.horizontalLayout_6.addWidget(self.com_baud_rate_label)
 
-        self.com_baud_rate_input = QLineEdit(self.layoutWidget5)
+        self.com_baud_rate_input = QComboBox(self.layoutWidget5)
+        self.com_baud_rate_input.addItem("")
+        self.com_baud_rate_input.addItem("")
+        self.com_baud_rate_input.addItem("")
+        self.com_baud_rate_input.addItem("")
+        self.com_baud_rate_input.addItem("")
+        self.com_baud_rate_input.addItem("")
         self.com_baud_rate_input.setObjectName(u"com_baud_rate_input")
-        sizePolicy2.setHeightForWidth(self.com_baud_rate_input.sizePolicy().hasHeightForWidth())
-        self.com_baud_rate_input.setSizePolicy(sizePolicy2)
+        sizePolicy1.setHeightForWidth(self.com_baud_rate_input.sizePolicy().hasHeightForWidth())
+        self.com_baud_rate_input.setSizePolicy(sizePolicy1)
 
-        self.horizontalLayout_8.addWidget(self.com_baud_rate_input)
+        self.horizontalLayout_6.addWidget(self.com_baud_rate_input)
 
 
-        self.gridLayout_4.addLayout(self.horizontalLayout_8, 0, 0, 1, 3)
+        self.gridLayout_4.addLayout(self.horizontalLayout_6, 0, 1, 1, 2)
 
+        self.horizontalLayout_11 = QHBoxLayout()
+        self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
         self.accel_status_check_button = QPushButton(self.layoutWidget5)
         self.accel_status_check_button.setObjectName(u"accel_status_check_button")
         sizePolicy2.setHeightForWidth(self.accel_status_check_button.sizePolicy().hasHeightForWidth())
         self.accel_status_check_button.setSizePolicy(sizePolicy2)
         self.accel_status_check_button.setFont(font2)
 
-        self.gridLayout_4.addWidget(self.accel_status_check_button, 1, 0, 1, 1)
+        self.horizontalLayout_11.addWidget(self.accel_status_check_button)
 
         self.accel_com_status_label = QLabel(self.layoutWidget5)
         self.accel_com_status_label.setObjectName(u"accel_com_status_label")
@@ -370,7 +384,10 @@ class Ui_main_widget(object):
         self.accel_com_status_label.setSizePolicy(sizePolicy)
         self.accel_com_status_label.setFont(font2)
 
-        self.gridLayout_4.addWidget(self.accel_com_status_label, 1, 1, 1, 1)
+        self.horizontalLayout_11.addWidget(self.accel_com_status_label)
+
+
+        self.gridLayout_4.addLayout(self.horizontalLayout_11, 1, 0, 1, 2)
 
         self.accel_config_save_button = QPushButton(self.layoutWidget5)
         self.accel_config_save_button.setObjectName(u"accel_config_save_button")
@@ -576,7 +593,7 @@ class Ui_main_widget(object):
     def retranslateUi(self, main_widget):
         main_widget.setWindowTitle(QCoreApplication.translate("main_widget", u"Frequency tunable triboelectric test and measurement setup", None))
         self.con_box.setTitle(QCoreApplication.translate("main_widget", u"Connected devices", None))
-        self.identify_res_button.setText(QCoreApplication.translate("main_widget", u"IDENTIFY CONNECTED DEVICES", None))
+        self.identify_res_button.setText(QCoreApplication.translate("main_widget", u"IDENTIFY CONNECTED DEVICE", None))
         self.config_box.setTitle(QCoreApplication.translate("main_widget", u"Configurations", None))
         self.fun_config_box.setTitle(QCoreApplication.translate("main_widget", u"Function Generator", None))
         self.fun_id_label.setText(QCoreApplication.translate("main_widget", u"DEVICE ID", None))
@@ -600,6 +617,13 @@ class Ui_main_widget(object):
         self.accel_config_box.setTitle(QCoreApplication.translate("main_widget", u"Accelerometer", None))
         self.accel_com_label.setText(QCoreApplication.translate("main_widget", u"COM PORT", None))
         self.com_baud_rate_label.setText(QCoreApplication.translate("main_widget", u"BAUD RATE", None))
+        self.com_baud_rate_input.setItemText(0, QCoreApplication.translate("main_widget", u"115200", None))
+        self.com_baud_rate_input.setItemText(1, QCoreApplication.translate("main_widget", u"57600", None))
+        self.com_baud_rate_input.setItemText(2, QCoreApplication.translate("main_widget", u"38400", None))
+        self.com_baud_rate_input.setItemText(3, QCoreApplication.translate("main_widget", u"19200", None))
+        self.com_baud_rate_input.setItemText(4, QCoreApplication.translate("main_widget", u"9600", None))
+        self.com_baud_rate_input.setItemText(5, QCoreApplication.translate("main_widget", u"4800", None))
+
         self.accel_status_check_button.setText(QCoreApplication.translate("main_widget", u"CHECK STATUS", None))
         self.accel_com_status_label.setText(QCoreApplication.translate("main_widget", u"Available!", None))
         self.accel_config_save_button.setText(QCoreApplication.translate("main_widget", u"SAVE", None))
