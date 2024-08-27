@@ -12,6 +12,10 @@ from RsInstrument import RsInstrument
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
+import matplotlib.animation as animation
+from collections import deque
+from scipy.fft import fft, fftfreq
+
 class MainWindow(QMainWindow, Ui_main_widget):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -34,16 +38,18 @@ class MainWindow(QMainWindow, Ui_main_widget):
         self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
         self.ui.accel_status_check_button.clicked.connect(self.accel_config_check_status) # accelerometer comport status check button
         self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
-        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_data) # oscilloscope data fetch button
-        self.ui.scope_data_save_button.clicked.connect(self.scope_save_data)  # oscilloscope data save button
-
+        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_scope_data) # oscilloscope data fetch button
+        self.ui.scope_data_save_button.clicked.connect(self.save_scope_data)  # oscilloscope data save button
+        self.ui.accel_fetch_button.clicked.connect(self.fetch_serial_port_data)
+        self.ui.accel_disconnect_button.clicked.connect(self.disconnect_serial_port)
+        self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
 
     def set_main_widget(self, widget):
         self.setCentralWidget(widget)
 
     def print_message_to_output(self, message):
-        self.ui.output_message.clear()
-        self.ui.output_message.append(f"{self.message_id}:{message}")
+        # self.ui.output_message.clear()
+        self.ui.output_message.append(f"Output#{self.message_id}:  {message}")
         self.message_id = self.message_id+1
         
     def identify_and_print_devices(self):
@@ -207,31 +213,13 @@ class MainWindow(QMainWindow, Ui_main_widget):
     def accel_save(self):
         self.accel_config_check_status()
 
-    def fetch_and_update_data(self):
+    def fetch_and_update_scope_data(self):
         if not self.save_scope_config():
             return
         else:
             self.save_scope_config()
-        
-            # Step 1: Set up the QGraphicsScene and QGraphicsView
-            self.scope_scene = QGraphicsScene()
-            self.ui.scope_graphics_view.setScene(self.scope_scene)
 
-            # Step 2: Get the current size of the QGraphicsView
-            size = self.ui.scope_graphics_view.size()
-            dpi = 300
-
-            self.scope_figure = Figure(figsize=(size.width()/dpi, size.height()/dpi), dpi=dpi)
-            self.scope_figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
-            self.ax = self.scope_figure.add_subplot(111)
-
-            # Create the canvas and add it to the scene
-            self.scope_canvas = FigureCanvas(self.scope_figure)
-            self.scope_canvas.setFixedSize(size.width(), size.height())
-            self.scope_scene.addWidget(self.scope_canvas)
-            # self.scope_canvas.setGeometry(0, 0, size.width(), size.height())
-
-            # step 4: Check selected channels and fetch waveform data
+            # step 1: Check selected channels and fetch waveform data
             channels = [
                     self.ui.scope_channel1.isChecked(),
                     self.ui.scope_channel2.isChecked(),
@@ -240,50 +228,59 @@ class MainWindow(QMainWindow, Ui_main_widget):
                 ]
             
             if sum(channels) > 0:
-                # Step 5: Connect to oscilloscope
-                rtb = RsInstrument(self.scope_id, True, True)
-                rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+                try:
+                    # Step 2: Connect to oscilloscope
+                    rtb = RsInstrument(self.scope_id, True, True)
+                    rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
 
-                # step 6: fetch selected data
-                scope_data = {}
-                colors = ['blue', 'green', 'red', 'purple']
-                for i, ch in enumerate(channels, start=1):
-                    if ch:
-                        rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
-                        waveform = rtb.query_bin_or_ascii_float_list(f'FORM ASC;:CHAN{i}:DATA?')
-                        x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
-                        x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-                        time_data = np.arange(0, len(waveform)) * x_increment + x_origin
-                        scope_data[f'Channel_{i}'] = pd.DataFrame({
-                            'time_data': time_data,
-                            'waveform': waveform,
-                            'color': colors[i-1]
-                            })
-                rtb.close()
+                    # step 3: fetch selected data
+                    scope_data = {}
+                    colors = ['blue', 'green', 'red', 'purple']
+                    for i, ch in enumerate(channels, start=1):
+                        if ch:
+                            rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
+                            waveform = rtb.query_bin_or_ascii_float_list(f'FORM ASC;:CHAN{i}:DATA?')
+                            x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
+                            x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+                            time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                            scope_data[f'Channel_{i}'] = pd.DataFrame({
+                                'time_data': time_data,
+                                'waveform': waveform,
+                                'color': colors[i-1]
+                                })
+                    rtb.close()
+                    # Step 4: Set up the QGraphicsScene and QGraphicsView
+                    self.scope_scene = QGraphicsScene()
+                    self.ui.scope_graphics_view.setScene(self.scope_scene)
 
-                # Step 5: Plot the data from the selected channels
-                for channel_name, data in scope_data.items():
-                    self.ax.plot(data['time_data'], data['waveform'], label=channel_name, color=data['color'])
+                    # Step 5: Get the current size of the QGraphicsView
+                    size = self.ui.scope_graphics_view.size()
+                    dpi = 600
 
-                self.ax.legend()
+                    # Step 6: figure settings
+                    self.scope_figure = Figure(figsize=(size.width()/dpi, size.height()/dpi), dpi=dpi)
+                    self.ax = self.scope_figure.add_subplot(111)
+                    self.scope_canvas = FigureCanvas(self.scope_figure)
+                    self.scope_canvas.setFixedSize(size.width()*0.85, size.height()*0.85)
+                    self.scope_scene.addWidget(self.scope_canvas)
 
-                # Step 7: Draw the plot
-                self.scope_canvas.draw()
+                    # Step 7: Plot the data from the selected channels
+                    for channel_name, data in scope_data.items():
+                        self.ax.plot(data['time_data'], data['waveform'], label=channel_name, color=data['color'])
 
-                # Step 8: Handle resizing within the same method
-                size = self.ui.scope_graphics_view.size()
-                width = size.width()
-                height = size.height()
+                    self.ax.legend()
 
-                # Update figure and canvas sizes based on the new size
-                self.scope_figure.set_size_inches(width / dpi, height / dpi)
-                self.scope_canvas.setFixedSize(width, height)
-                self.scope_canvas.draw()  # Redraw to apply the new sizes
-                self.print_message_to_output("Scope data plotted!")
+                    # Step 7: Draw the plot
+                    self.scope_canvas.draw()
+
+                    self.print_message_to_output("Scope data plotted!")
+                    self.print_message_to_output("Scope data fetched successfully!")
+                except Exception as e:
+                    self.print_message_to_output(str(e))
             else:
                 self.print_message_to_output("Error! No channels selected.")
 
-    def scope_save_data(self):
+    def save_scope_data(self):
         if self.scope_data:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"data_{timestamp}.xlsx"
@@ -296,10 +293,138 @@ class MainWindow(QMainWindow, Ui_main_widget):
         else:
              self.print_message_to_output("No data available.")
 
+    def fetch_serial_port_data(self):
+        # Check if the COM port is available
+        if "Available" not in self.ui.accel_com_status_label.text():
+            self.accel_config_check_status()
+            return
+        else:
+            if self.ui.accel_config_com_input:
+
+            # Initialize serial port parameters
+                serial_port = f'COM{int(self.ui.accel_config_com_input.text())}'
+                baudrate = f'COM{int(self.accel_com_baud_rate.text())}'
+                timeout = 1
+                max_points = 100
+                update_interval = 10
+
+                try:
+                    # Initialize the serial connection
+                    self.ser = serial.Serial(serial_port, baudrate, timeout=timeout)
+                except serial.SerialException as e:
+                    self.print_message_to_output(f"Failed to open serial port: {e}")
+                    return
+
+                # Data storage
+                self.data_queue = deque(maxlen=max_points)
+                self.time_data = []
+                self.fft_data = []
+
+                # Setup the time series plot
+                self.time_series_scene = QGraphicsScene()
+                self.ui.accel_graph.setScene(self.time_series_scene)
+                self.time_series_fig = Figure()
+                self.ax1 = self.time_series_fig.add_subplot(111)
+                self.time_series_canvas = FigureCanvas(self.time_series_fig)
+                self.time_series_scene.addWidget(self.time_series_canvas)
+
+                # Setup the FFT plot
+                self.fft_scene = QGraphicsScene()
+                self.ui.accel_fft_graph.setScene(self.fft_scene)
+                self.fft_fig = Figure()
+                self.ax2 = self.fft_fig.add_subplot(111)
+                self.fft_canvas = FigureCanvas(self.fft_fig)
+                self.fft_scene.addWidget(self.fft_canvas)
+
+                # Start data acquisition and plotting loop
+                self.running = True
+                while self.running:
+                    self.update_plots()
+
+                # Close the serial connection when done
+                self.ser.close()
+            else:
+                self.print_message_to_output("Missing COM port number!")
+
+
+    def update_plots(self):
+        if self.ser.in_waiting > 0:
+            try:
+                line = self.ser.readline().decode('utf-8').strip()
+                if line:
+                    self.data_queue.append(float(line))
+            except ValueError:
+                self.print_message_to_output("Received non-numeric data")
+
+        # Update the time series plot
+        self.ax1.clear()
+        self.ax1.plot(range(len(self.data_queue)), list(self.data_queue), lw=2)
+        self.ax1.set_xlim(0, len(self.data_queue))
+        self.ax1.set_ylim(min(self.data_queue) - 1, max(self.data_queue) + 1)
+        self.ax1.set_title('Real-Time Data Plot')
+        self.time_series_canvas.draw()
+
+        # Update the FFT plot every update_interval seconds
+        if len(self.data_queue) > 1:
+            self.compute_and_plot_fft()
+
+        # Store data for saving
+        self.time_data.append(list(self.data_queue))
+        if len(self.data_queue) > 1:
+            self.fft_data.append(self.compute_and_plot_fft())
+
+    def compute_and_plot_fft(self):
+        n = len(self.data_queue)
+        T = 1.0  # Assuming 1 Hz sampling rate
+        yf = fft(self.data_queue)
+        xf = fftfreq(n, T)[:n//2]
+        magnitudes = 2.0/n * np.abs(yf[0:n//2])
+        dominant_freq = xf[np.argmax(magnitudes)]
+
+        self.ax2.clear()
+        self.ax2.plot(xf, magnitudes, lw=2)
+        self.ax2.set_xlim(0, xf[-1])
+        self.ax2.set_ylim(0, np.max(magnitudes) * 1.1)
+        self.ax2.set_title(f'FFT - Dominant Frequency: {dominant_freq:.2f} Hz')
+        self.fft_canvas.draw()
+
+        return magnitudes
+    
+    def disconnect_serial_port(self):
+        if hasattr(self, 'ser') and self.ser.is_open:
+            self.running = False
+            self.ser.close()
+            self.print_message_to_output("Serial port disconnected.")
+        else:
+            self.print_message_to_output("Serial port is not connected.")
+
+    def save_data_to_excel(self):
+        if not (self.time_data and self.fft_data):
+            self.print_message_to_output("No data available to save.")
+            return
+    
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"data_{timestamp}.xlsx"
+    
+        try:
+            with pd.ExcelWriter(filename) as writer:
+                # Save time series data
+                df_time = pd.DataFrame(self.time_data)
+                df_time.to_excel(writer, sheet_name='Time Data', index=False)
+
+                # Save FFT data
+                df_fft = pd.DataFrame(self.fft_data)
+                df_fft.to_excel(writer, sheet_name='FFT Data', index=False)
+
+            self.print_message_to_output(f"Data saved successfully as {filename}.")
+        except Exception as e:
+            self.print_message_to_output(f"Failed to save data: {e}")
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_window = MainWindow()  # Create an instance of your MainWindow class
-    main_window.setGeometry(0, 0, 1800, 1800)
+    main_window.setGeometry(0, 0, 1400, 800)
     main_window.show()  # Show the main window
     sys.exit(app.exec())  # Start the application loop
