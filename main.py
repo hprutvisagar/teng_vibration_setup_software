@@ -5,20 +5,12 @@ import datetime
 import pandas as pd
 import numpy as np
 import matplotlib
-#matplotlib.use("Qt5Agg")
-# from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget, QGraphicsScene, QGraphicsProxyWidget
 from PySide6.QtCore import Qt, QTimer, Signal, Slot
-from ui_form import Ui_main_widget  # Import the generated class
+from ui_form import Ui_main_widget  
 from RsInstrument import RsInstrument
-from ui_form import *
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-
-# from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-# from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget, QGraphicsScene, QGraphicsProxyWidget
-# from matplotlib.figure import Figure
-
 
 class MainWindow(QMainWindow, Ui_main_widget):
     def __init__(self):
@@ -30,95 +22,30 @@ class MainWindow(QMainWindow, Ui_main_widget):
         self.ui.setupUi(central_widget)
         self.setCentralWidget(central_widget)
 
-        self.initUI()
-    
-    def initUI(self):
-        # Initialize PyVISA resource manager
         self.rm = pyvisa.ResourceManager()
 
-        self.ui.output_message.setReadOnly(True)
+        self.ui.output_message.setReadOnly(True) # setting the terminal to read only
+        self.message_id = 1
 
         # Connect signals to your slots (functions) here
-        self.ui.identify_res_button.clicked.connect(self.identify_and_print_devices)
-        self.ui.fun_save_button.clicked.connect(self.save_function_generator_config)
-        self.ui.fun_config_send_button.clicked.connect(self.send_waveform_to_fun)
-        self.ui.scope_config_save_button.clicked.connect(self.save_scope_config)
-        self.ui.accel_status_check_button.clicked.connect(self.accel_config_check_status)
-        self.ui.accel_config_save_button.clicked.connect(self.accel_save)
-        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_data)
-        self.ui.scope_data_save_button.clicked.connect(self.scope_save_data)
-        
-        # Initialize QTimer for real-time plotting
-        # self.timer = QTimer()
-        # self.timer.timeout.connect(self.fetch_and_update_data)
-        # self.timer.setInterval(1000)  # Fetch data every 1000 milliseconds (1 second)
+        self.ui.identify_res_button.clicked.connect(self.identify_and_print_devices) # resource identification button
+        self.ui.fun_save_button.clicked.connect(self.save_function_generator_config) # function generator configuration save button
+        self.ui.fun_config_send_button.clicked.connect(self.send_waveform_to_fun) # send waveform to function generator
+        self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
+        self.ui.accel_status_check_button.clicked.connect(self.accel_config_check_status) # accelerometer comport status check button
+        self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
+        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_data) # oscilloscope data fetch button
+        self.ui.scope_data_save_button.clicked.connect(self.scope_save_data)  # oscilloscope data save button
 
-        # Create a QGraphicsScene and set it to the view
-        # self.scene = QGraphicsScene()
-        # self.ui.scope_graphics_view.setScene(self.scene)
-
-        # # # Create the Matplotlib figure and axes
-        # self.figure = Figure()
-        # self.ax = self.figure.add_subplot(111)
-        # self.canvas = FigureCanvas(self.figure)
-        # self.view = FigureCanvas(Figure(figsize=(5, 2)))
-        # self.axes = self.view.figure.subplots()
-
-        self.scope_scene = QGraphicsScene()
-        self.ui.scope_graphics_view.setScene(self.scope_scene)
-
-        # # Create the Matplotlib figure and axes
-        self.scope_figure = Figure(figsize=(12,6))
-        self.ax = self.scope_figure.add_subplot(111)
-        self.scope_canvas = FigureCanvas(self.scope_figure)
-        # self.gridLayout.addWidget(self.canvas, 1,0)
-
-        self.scope_scene.addWidget(self.scope_canvas)
-
-        # # Create a graphics proxy widget and set the canvas
-        # #self.proxy_widget = QGraphicsProxyWidget()
-        # # self.proxy_widget.setParent(self.scene)  # Add the proxy to the scene
-        # # self.canvas.setParent(proxy_widget)  # Set the canvas as child of the proxy
-        # #self.proxy_widget.setWidget(self.canvas)
-
-        # # Add the proxy widget to the scene
-        # print(type(self.view))
-
-        # self.ui.gridLayout.addWidget(self.view)
-        # self.scene.addWidget(self.view)
-        # self.plot_data()
-
-        
-        
-
-        self.plot_data()
-
-    def plot_data(self):
-        # Generate data
-        time_data = np.linspace(0, 1, 100)
-        waveform_data = np.sin(2 * np.pi * 5 * time_data)
-        
-        # Plot the data
-        self.ax.plot(time_data, waveform_data)
-        self.ax.set_xlabel('Time (s)')
-        self.ax.set_ylabel('Amplitude')
-        self.ax.set_title('Sine Wave')
-        self.ax.grid(True)
-        
-        # Draw the plot
-        self.scope_canvas.draw()
-
-            
-
-        # self.scene.addWidget(self.canvas)
 
     def set_main_widget(self, widget):
         self.setCentralWidget(widget)
 
     def print_message_to_output(self, message):
         self.ui.output_message.clear()
-        self.ui.output_message.setPlainText(message)
-
+        self.ui.output_message.append(f"{self.message_id}:{message}")
+        self.message_id = self.message_id+1
+        
     def identify_and_print_devices(self):
         resources = self.rm.list_resources()
         resources = list(set(resources))  # Eliminate duplicates
@@ -280,85 +207,95 @@ class MainWindow(QMainWindow, Ui_main_widget):
     def accel_save(self):
         self.accel_config_check_status()
 
-    def start_real_time_plotting(self):
+    def fetch_and_update_data(self):
         if not self.save_scope_config():
             return
-    
-    # def fetch_and_update_data(self):
-    #     # Fetch data from the scope and update the plot
-    #     data_dict = self.fetch_scope_data()
-    #     self.update_plot(data_dict)
-
-    def fetch_and_update_data(self):
-        time_data = np.linspace(0, 1, 100)
-        waveform_data = np.sin(2 * np.pi * 5 * time_data)
-
-         # Plot the data
-        self.ax.plot(time_data, waveform_data)
-        self.ax.set_xlabel('Time (s)')
-        self.ax.set_ylabel('Amplitude')
-        self.ax.set_title('Sine Wave')
-        self.ax.grid(True)
-
-        self.canvas.draw()
-
-
+        else:
+            self.save_scope_config()
         
-        return
-        try:
-            # Connect to oscilloscope
-            rtb = RsInstrument(self.scope_id, True, True)
-            rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
-          
+            # Step 1: Set up the QGraphicsScene and QGraphicsView
+            self.scope_scene = QGraphicsScene()
+            self.ui.scope_graphics_view.setScene(self.scope_scene)
+
+            # Step 2: Get the current size of the QGraphicsView
+            size = self.ui.scope_graphics_view.size()
+            dpi = 300
+
+            self.scope_figure = Figure(figsize=(size.width()/dpi, size.height()/dpi), dpi=dpi)
+            self.scope_figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
+            self.ax = self.scope_figure.add_subplot(111)
+
+            # Create the canvas and add it to the scene
+            self.scope_canvas = FigureCanvas(self.scope_figure)
+            self.scope_canvas.setFixedSize(size.width(), size.height())
+            self.scope_scene.addWidget(self.scope_canvas)
+            # self.scope_canvas.setGeometry(0, 0, size.width(), size.height())
+
+            # step 4: Check selected channels and fetch waveform data
             channels = [
-                self.ui.scope_channel1.isChecked(),
-                self.ui.scope_channel2.isChecked(),
-                self.ui.scope_channel3.isChecked(),
-                self.ui.scope_channel4.isChecked()
-            ]
-          
-            # Fetch data from checked channels
-            scope_data = {}
-            for i, ch in enumerate(channels, start=1):
-                if ch:
-                    rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
-                    waveform = rtb.query_bin_or_ascii_float_list('FORM ASC;:CHAN{i}:DATA?')
-                    x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
-                    x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-                    time_data = np.arange(0, len(waveform)) * x_increment + x_origin
-                    scope_data[f'Channel_{i}'] = pd.DataFrame({
-                        'time_data': time_data,
-                        'waveform': waveform
-                    })
-            rtb.close()
-            # Update the plot with new data
-            self.plot_widget.update_plot(scope_data)
-      
-        except Exception as e:
-            self.print_message_to_output(f"Error: {str(e)}")
-    
-    def update_plot(self, data_dict):
-        self.ax.clear()  # Clear the previous plot
-        
-        for channel, data in data_dict.items():
-            self.ax.plot(data['time_data'], data['waveform'], label=f'Channel {channel}')
-        
-        self.ax.set_xlabel('Time (s)')
-        self.ax.set_ylabel('Voltage (V)')
-        self.ax.set_title('Oscilloscope Waveforms')
-        self.ax.grid(True)
-        self.ax.legend()
-        self.canvas.draw()  # Redraw the canvas with the new plot
+                    self.ui.scope_channel1.isChecked(),
+                    self.ui.scope_channel2.isChecked(),
+                    self.ui.scope_channel3.isChecked(),
+                    self.ui.scope_channel4.isChecked()
+                ]
+            
+            if sum(channels) > 0:
+                # Step 5: Connect to oscilloscope
+                rtb = RsInstrument(self.scope_id, True, True)
+                rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+
+                # step 6: fetch selected data
+                scope_data = {}
+                colors = ['blue', 'green', 'red', 'purple']
+                for i, ch in enumerate(channels, start=1):
+                    if ch:
+                        rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
+                        waveform = rtb.query_bin_or_ascii_float_list(f'FORM ASC;:CHAN{i}:DATA?')
+                        x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
+                        x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+                        time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                        scope_data[f'Channel_{i}'] = pd.DataFrame({
+                            'time_data': time_data,
+                            'waveform': waveform,
+                            'color': colors[i-1]
+                            })
+                rtb.close()
+
+                # Step 5: Plot the data from the selected channels
+                for channel_name, data in scope_data.items():
+                    self.ax.plot(data['time_data'], data['waveform'], label=channel_name, color=data['color'])
+
+                self.ax.legend()
+
+                # Step 7: Draw the plot
+                self.scope_canvas.draw()
+
+                # Step 8: Handle resizing within the same method
+                size = self.ui.scope_graphics_view.size()
+                width = size.width()
+                height = size.height()
+
+                # Update figure and canvas sizes based on the new size
+                self.scope_figure.set_size_inches(width / dpi, height / dpi)
+                self.scope_canvas.setFixedSize(width, height)
+                self.scope_canvas.draw()  # Redraw to apply the new sizes
+                self.print_message_to_output("Scope data plotted!")
+            else:
+                self.print_message_to_output("Error! No channels selected.")
 
     def scope_save_data(self):
         if self.scope_data:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            for channel, df in self.scope_data.items():
-                filename = f"data_{timestamp}_channel_{channel[-1]}.csv"
-                df.to_csv(filename, index=False)
+            filename = f"data_{timestamp}.xlsx"
+            with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+                for channel, df in self.scope_data.items():
+                    sheet_name = f"Channel_{channel[-1]}"
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+            
             self.print_message_to_output("Data fetched and saved successfully.")
         else:
-            self.print_message_to_output("No data available.")
+             self.print_message_to_output("No data available.")
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
