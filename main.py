@@ -230,8 +230,9 @@ class MainWindow(QMainWindow, Ui_main_widget):
             if sum(channels) > 0:
                 try:
                     # Step 2: Connect to oscilloscope
-                    rtb = RsInstrument(self.scope_id, True, True)
+                    rtb = RsInstrument(self.scope_id, True, False)
                     rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+                    
 
                     # step 3: fetch selected data
                     scope_data = {}
@@ -239,6 +240,7 @@ class MainWindow(QMainWindow, Ui_main_widget):
                     for i, ch in enumerate(channels, start=1):
                         if ch:
                             rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
+                            rtb.write_str(f'CHAN: RANG {self.scope_yrange}')
                             waveform = rtb.query_bin_or_ascii_float_list(f'FORM ASC;:CHAN{i}:DATA?')
                             x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
                             x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
@@ -277,8 +279,10 @@ class MainWindow(QMainWindow, Ui_main_widget):
                     self.print_message_to_output("Scope data fetched successfully!")
                 except Exception as e:
                     self.print_message_to_output(str(e))
+                    rtb.close()
             else:
                 self.print_message_to_output("Error! No channels selected.")
+                
 
     def save_scope_data(self):
         if self.scope_data:
@@ -303,7 +307,7 @@ class MainWindow(QMainWindow, Ui_main_widget):
 
             # Initialize serial port parameters
                 serial_port = f'COM{int(self.ui.accel_config_com_input.text())}'
-                baudrate = f'COM{int(self.accel_com_baud_rate.text())}'
+                baudrate = self.ui.com_baud_rate_input.currentData()
                 timeout = 1
                 max_points = 100
                 update_interval = 10
