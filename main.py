@@ -138,7 +138,9 @@ class MainWindow(QMainWindow):
         self.ui.accel_disconnect_button.clicked.connect(self.stop_acquisition)
         self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
         
-        # logos addition
+        #############################################################################################
+        ##   logos addition                                                           ##
+        #############################################################################################
         self.logo_scene = QGraphicsScene()
         self.ui.logo_space.setScene(self.logo_scene)
         self.logo = QtGui.QPixmap()
