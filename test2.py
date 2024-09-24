@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PySide6 import QtCore, QtGui, QtUiTools, QtWidgets
 from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget, QGraphicsScene, QGraphicsProxyWidget
-from PySide6.QtCore import Qt, QTimer, Signal, Slot, QThread, Signal, QObject
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QThread, Signal
 from ui_form import Ui_main_widget  
 from RsInstrument import RsInstrument
 from matplotlib.figure import Figure
@@ -18,8 +18,6 @@ from collections import deque
 from scipy.fft import fft, fftfreq
 
 import threading
-
-import pyqtgraph as pg
 
 
 def loadUiWidget(uifilename, parent=None):
@@ -37,46 +35,6 @@ def loadUiWidget(uifilename, parent=None):
         uifile.close()
     return ui
 
-class DataAcquisitionWorker(QObject):
-    data_ready = Signal(float, float)  # Signal to emit new data
-    error_occurred = Signal(str)       # Signal to emit error messages
-    finished = Signal()                # Signal to indicate the thread has finished
-
-    def __init__(self, port, baudrate):
-        super().__init__()
-        self.port = port
-        self.baudrate = baudrate
-        self.com_status = True  # Control variable for stopping the loop
-
-    def run(self):
-        """Function to be executed in a separate thread."""
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate)
-            self.com_status = True
-        except Exception as e:
-            self.error_occurred.emit(f"Error opening serial port: {e}")
-            return
-
-        while self.com_status:
-            if self.ser.is_open:
-                try:
-                    line_data = self.ser.readline().decode('utf-8').strip()
-                    time_str, g_value_str = line_data.split(", ")
-                    time = float(time_str[1:])
-                    g_value = float(g_value_str[:-1])
-                    self.data_ready.emit(time, g_value)
-                except Exception as e:
-                    self.error_occurred.emit(f"Error reading serial data: {e}")
-                    self.stop()
-
-        self.finished.emit()
-
-    def stop(self):
-        """Stop the data acquisition."""
-        self.com_status = False
-        if self.ser and self.ser.is_open:
-            self.ser.close()
-            
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -86,11 +44,6 @@ class MainWindow(QMainWindow):
             self.list_all_widgets() ## debug only...lists all available objects in the UI
         else:
             print("Failed to load UI.")
-        
-        self.thread = None
-        self.worker = None
-        self.accel_time_data = []
-        self.accel_g_value_data = []
             
     def list_all_widgets(self):    ### support script to list all the available objects in UI
         # Get all child widgets of any type
@@ -112,32 +65,6 @@ class MainWindow(QMainWindow):
         #resource manager settings
         self.rm = pyvisa.ResourceManager()
         
-        # replacing the graph of oscilloscope
-        self.scope_graph = pg.PlotWidget()
-        scope_parent_layout = self.ui.scope_graphics_view.parent().layout()
-        scope_parent_layout.replaceWidget(self.ui.scope_graphics_view, self.scope_graph)
-        self.ui.scope_graphics_view.deleteLater()
-        
-        # replacing the accelerometer graph object
-        self.accel_graph = pg.PlotWidget()
-        accel_parent_layout = self.ui.accel_graph.parent().layout()
-        accel_parent_layout.replaceWidget(self.ui.accel_graph, self.accel_graph)
-        self.ui.accel_graph.deleteLater()
-        
-        #############################################################################################
-        ##   connections to GUI elements                                                           ##
-        #############################################################################################
-        self.ui.identify_res_button.clicked.connect(self.identify_and_print_devices) # resource identification button
-        self.ui.fun_save_button.clicked.connect(self.save_function_generator_config) # function generator configuration save button
-        self.ui.fun_start_button.clicked.connect(self.send_waveform_to_fun) # send waveform to function generator
-        self.ui.fun_stop_button.clicked.connect(self.stop_fun_generator) # stop the output of function generator
-        self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
-        self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
-        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_scope_data) # oscilloscope data fetch button
-        self.ui.accel_fetch_button.clicked.connect(self.start_acquisition)
-        self.ui.accel_disconnect_button.clicked.connect(self.stop_acquisition)
-        self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
-        
         # logos addition
         self.logo_scene = QGraphicsScene()
         self.ui.logo_space.setScene(self.logo_scene)
@@ -152,6 +79,20 @@ class MainWindow(QMainWindow):
         self.imtek_logo.load("logo_imtek.jpg")
         self.imtek_logo_scene.addPixmap(self.imtek_logo)
         self.ui.imtek_logo.fitInView(self.imtek_logo_scene.sceneRect())
+        
+        #############################################################################################
+        ##   connections to GUI elements                                                           ##
+        #############################################################################################
+        self.ui.identify_res_button.clicked.connect(self.identify_and_print_devices) # resource identification button
+        self.ui.fun_save_button.clicked.connect(self.save_function_generator_config) # function generator configuration save button
+        self.ui.fun_start_button.clicked.connect(self.send_waveform_to_fun) # send waveform to function generator
+        self.ui.fun_stop_button.clicked.connect(self.stop_fun_generator) # stop the output of function generator
+        self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
+        self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
+        self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_scope_data) # oscilloscope data fetch button
+        self.ui.accel_fetch_button.clicked.connect(self.start_acquisition)
+        self.ui.accel_disconnect_button.clicked.connect(self.stop_acquisition)
+        self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
         
     def identify_and_print_devices(self):
         resources = self.rm.list_resources()
@@ -305,6 +246,8 @@ class MainWindow(QMainWindow):
     def fetch_and_update_scope_data(self):
         if not self.save_scope_config():
             return
+        else:
+            self.save_scope_config()
 
             # step 1: Check selected channels and fetch waveform data
             channels = [
@@ -320,6 +263,7 @@ class MainWindow(QMainWindow):
                     rtb = RsInstrument(self.scope_id, True, False)
                     rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
                     
+
                     # step 3: fetch selected data
                     scope_data = {}
                     colors = ['blue', 'green', 'red', 'purple']
@@ -337,94 +281,83 @@ class MainWindow(QMainWindow):
                                 'color': colors[i-1]
                                 })
                     rtb.close()
-                    
-                    # Step 4: plot the data
-                    scope_legend = self.scope_graph.addLegend()
-                    scope_legend.setPos(0,0)
-                    
-                    self.scope_graph.clear()  # Clears the existing plots
-                    
+                    # Step 4: Set up the QGraphicsScene and QGraphicsView
+                    self.scope_scene = QGraphicsScene()
+                    self.ui.scope_graphics_view.setScene(self.scope_scene)
+
+                    # Step 5: Get the current size of the QGraphicsView
+                    size = self.ui.scope_graphics_view.size()
+                    self.dpi = 600
+
+                    # Step 6: figure settings
+                    self.scope_figure = Figure(figsize=(size.width()/self.dpi, size.height()/self.dpi), dpi=self.dpi)
+                    self.ax = self.scope_figure.add_subplot(111)
+                    self.scope_canvas = FigureCanvas(self.scope_figure)
+                    self.scope_canvas.setFixedSize(size.width()*0.85, size.height()*0.85)
+                    self.scope_scene.addWidget(self.scope_canvas)
+
+                    # Step 7: Plot the data from the selected channels
                     for channel_name, data in scope_data.items():
-                        self.scope_graph.plot(data['time_data'], data['waveform'], name=channel_name, pen = pg.mkPen(data['color'], width=2))
-                    
-                    scope_legend.setBrush(pg.mkBrush(255, 255, 255, 200))
-                    
-                    self.print_message_to_output("Scope data fetched & plotted successfully!")
-                    
+                        self.ax.plot(data['time_data'], data['waveform'], label=channel_name, color=data['color'])
+
+                    self.ax.legend()
+
+                    # Step 7: Draw the plot
+                    self.scope_canvas.draw()
+
+                    self.print_message_to_output("Scope data plotted!")
+                    self.print_message_to_output("Scope data fetched successfully!")
                 except Exception as e:
                     self.print_message_to_output(str(e))
-                finally:
                     rtb.close()
             else:
                 self.print_message_to_output("Error! No channels selected.")
 
     def start_acquisition(self):
         self.accel_save()
-        #####
-        #     def start_acquisition(self):
-        # """Start the data acquisition in a new thread."""
-        # Set up the thread and worker
-        self.thread = QThread()
-        self.worker = DataAcquisitionWorker(port=self.port, baudrate=self.baudrate)
 
-        # Move the worker to the thread
-        self.worker.moveToThread(self.thread)
+        self.ser = serial.Serial(self.port, self.baudrate)
+        self.com_status = True
 
-        # Connect signals and slots
-        self.thread.started.connect(self.worker.run)
-        self.worker.data_ready.connect(self.update_plot)
-        self.worker.error_occurred.connect(self.print_message_to_output)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
+        while self.com_status:
+            if self.ser.is_open:
+                try:
+                    self.print_message_to_output("serial port connected!")
 
-        # Start the thread
-        self.thread.start()
-        ######
-        # self.ser = serial.Serial(self.port, self.baudrate)
-        # self.com_status = True
+                    line_data = self.ser.readline().decode('utf-8').strip()
+                    if line_data:
+                        print(f"Raw data read from serial: {line_data}")
+                    # print(line_data)
+                    # self.print_message_to_output(line_data)
 
-        # while self.com_status:
-        #     if self.ser.is_open:
-        #         try:
-        #             self.print_message_to_output("serial port connected!")
+                    time_str, g_value_str = line_data.split(", ")
+                    time = float(time_str[1:])
+                    g_value = float(g_value_str[:-1])
 
-        #             line_data = self.ser.readline().decode('utf-8').strip()
-        #             # if line_data:
-        #             #     print(f"Raw data read from serial: {line_data}")
-        #             # print(line_data)
-        #             # self.print_message_to_output(line_data)
+                    self.accel_time_data.append(time)
+                    self.accel_g_value_data.append(g_value)
 
-        #             time_str, g_value_str = line_data.split(", ")
-        #             time = float(time_str[1:])
-        #             g_value = float(g_value_str[:-1])
+                    print(f"lengths: {len(self.accel_time_data)},{len(self.accel_g_value_data)}")
 
-        #             self.accel_time_data.append(time)
-        #             self.accel_g_value_data.append(g_value)
-
-        #             print(f"lengths: {len(self.accel_time_data)},{len(self.accel_g_value_data)}")
-
-        #             if len(self.accel_time_data) % 5 == 0:
-        #                 self.update_plot()
-        #         except Exception as e:
-        #             self.print_message_to_output(f"Error: {e}")
+                    if len(self.accel_time_data) % 5 == 0:
+                        self.update_plot()
+                except Exception as e:
+                    self.print_message_to_output(f"Error: {e}")
 
     def update_plot(self):
-        """Update the plot with new data."""
-        self.accel_time_data.append(time)
-        self.accel_g_value_data.append(g_value)
+        self.accel_time_line.set_data(self.accel_time_data, self.accel_g_value_data)
+        # self.accel_time_ax.clear()
+        self.accel_time_ax.grid(True)
+        self.accel_time_ax.set_ylim(-50, 50)
+        self.accel_time_ax.plot(self.accel_time_data, self.accel_g_value_data, lw=2)
 
-        self.accel_plot_widget.clear()
-        self.accel_plot_widget.plot(self.accel_time_data, self.accel_g_value_data, pen='r')
+        self.time_series_canvas.draw()
         
     def stop_acquisition(self):
-        # if self.ser.is_open:
-        #     self.ser.close()
-        #     self.com_status = False
-        #     self.print_message_to_output("port closed")        
-        
-        if self.worker:
-            self.worker.stop()
+        if self.ser.is_open:
+            self.ser.close()
+            self.com_status = False
+            self.print_message_to_output("port closed")        
         
     def save_data_to_excel(self):
         if not (self.time_data and self.fft_data):
@@ -467,4 +400,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     main_window = MainWindow() #loadUiWidget("form.ui")
     main_window.show()
-    sys.exit(app.exec())
+    sys.exit(app.exec_())
