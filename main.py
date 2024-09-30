@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from PySide6 import QtCore, QtGui, QtUiTools, QtWidgets
-from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget, QGraphicsScene, QGraphicsProxyWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QVBoxLayout, QWidget, QGraphicsScene, QGraphicsProxyWidget, QFileDialog
 from PySide6.QtCore import Qt, QTimer, Signal, Slot, QThread, Signal, QObject
 from ui_form import Ui_main_widget  
 from RsInstrument import RsInstrument
@@ -16,6 +16,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.animation as animation
 from collections import deque
 from scipy.fft import fft, fftfreq
+
+import json
+import os
 
 import threading
 
@@ -83,7 +86,7 @@ class MainWindow(QMainWindow):
         self.ui = loadUiWidget("ui/form.ui", self)
         if self.ui:
             self.setupUi()
-            self.list_all_widgets() ## debug only...lists all available objects in the UI
+            # self.list_all_widgets() ## debug only...lists all available objects in the UI
         else:
             print("Failed to load UI.")
         
@@ -108,6 +111,8 @@ class MainWindow(QMainWindow):
         # output message settings
         self.ui.output_message.setReadOnly(True) # setting the terminal to read only
         self.message_id = 1
+        
+        self.last_used_directory = self.load_last_used_directory()
         
         #resource manager settings
         self.rm = pyvisa.ResourceManager()
@@ -134,6 +139,7 @@ class MainWindow(QMainWindow):
         self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
         self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
         self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_scope_data) # oscilloscope data fetch button
+        self.ui.scope_data_save_button.clicked.connect(self.scope_data_save)
         self.ui.accel_fetch_button.clicked.connect(self.start_acquisition)
         self.ui.accel_disconnect_button.clicked.connect(self.stop_acquisition)
         self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
@@ -308,80 +314,133 @@ class MainWindow(QMainWindow):
         if not self.save_scope_config():
             return
 
-            # step 1: Check selected channels and fetch waveform data
-            channels = [
-                    self.ui.scope_channel1.isChecked(),
-                    self.ui.scope_channel2.isChecked(),
-                    self.ui.scope_channel3.isChecked(),
-                    self.ui.scope_channel4.isChecked()
-                ]
+        # step 1: Check selected channels and fetch waveform data
+        channels = [
+                self.ui.scope_channel1.isChecked(),
+                self.ui.scope_channel2.isChecked(),
+                self.ui.scope_channel3.isChecked(),
+                self.ui.scope_channel4.isChecked()
+            ]
+        
+        self.scope_data = {}
+        colors = ['blue', 'green', 'red', 'purple']
             
-            if sum(channels) > 0:
-                try:
-                    # Step 2: Connect to oscilloscope
-                    rtb = RsInstrument(self.scope_id, True, False)
-                    rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
-                    
-                    # step 3: fetch selected data
-                    scope_data = {}
-                    colors = ['blue', 'green', 'red', 'purple']
-                    for i, ch in enumerate(channels, start=1):
-                        if ch:
-                            rtb.write_str(f"CHAN{i}:DATA:SOURCE CHAN{i}")
-                            rtb.write_str(f'CHAN: RANG {self.scope_yrange}')
-                            waveform = rtb.query_bin_or_ascii_float_list(f'FORM ASC;:CHAN{i}:DATA?')
-                            x_increment = float(rtb.query(f'CHAN{i}:DATA:XINC?'))
-                            x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-                            time_data = np.arange(0, len(waveform)) * x_increment + x_origin
-                            scope_data[f'Channel_{i}'] = pd.DataFrame({
-                                'time_data': time_data,
-                                'waveform': waveform,
-                                'color': colors[i-1]
-                                })
-                    rtb.close()
-                    
-                    # Step 4: plot the data
-                    scope_legend = self.scope_graph.addLegend()
-                    scope_legend.setPos(0,0)
-                    
-                    self.scope_graph.clear()  # Clears the existing plots
-                    
-                    for channel_name, data in scope_data.items():
-                        self.scope_graph.plot(data['time_data'], data['waveform'], name=channel_name, pen = pg.mkPen(data['color'], width=2))
-                    
-                    scope_legend.setBrush(pg.mkBrush(255, 255, 255, 200))
-                    
-                    self.print_message_to_output("Scope data fetched & plotted successfully!")
-                    
-                except Exception as e:
-                    self.print_message_to_output(str(e))
-                finally:
-                    rtb.close()
-            else:
-                self.print_message_to_output("Error! No channels selected.")
+        if sum(channels) > 0:
+            try:
+                # Step 2: Connect to oscilloscope
+                rtb = RsInstrument(self.scope_id, True, True)
+                rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+                
+                # step 3: fetch selected data
+                for i, ch in enumerate(channels, start=1):
+                    if ch:
+                        rtb.write_str(f"CHAN{i}:RANG {self.scope_yrange}")
+                        rtb.write_str(f"CHAN{i}:OFFS 0.0")
+                        rtb.write_str(f"CHAN{i}:COUP ACL")
+                        rtb.write_str(f"CHAN{i}:STAT ON") 
+                        
+                        rtb.write_str(f"PROBe{i}:SETup:ATTenuation:UNIT V")  # probe set to 1:1 attenuation factor
+                        rtb.write_str(f'PROBe{i}:SETup:ATTenuation:MANual 1.0')
+                        
+                        rtb.write_str(f"TRIG:A:MODE AUTO")
+                        rtb.write_str(f"TRIG:A:TYPE EDGE;:TRIG:A:EDGE:SLOP POS")
+                        rtb.write_str(f"TRIG:A:SOUR CH{i}")
+                        rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")                        
+                        rtb.query_opc()
+                        
+                        rtb.write_str_with_opc("SINGle", 3000)
+                        
+                        waveform = rtb.query_bin_or_ascii_float_list(f"FORM ASC;:CHAN{i}:DATA?")
+                        
+                        # waveform = float(rtb.query(f'CHAN{i}:DATA?'))
+                        x_increment = float(rtb.query(f"CHAN{i}:DATA:XINC?"))
+                        x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+                        time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                        
+                        self.scope_data[f'Channel_{i}'] = pd.DataFrame({
+                            'time_data': time_data,
+                            'waveform': waveform,
+                            })
+                rtb.close()
+                
+                # Step 4: plot the data
+                self.scope_graph.clear()  # Clears the existing plots
+                
+                scope_legend = self.scope_graph.addLegend()
+                scope_legend.setPos(0,0)
+                
+                for channel_name, data in self.scope_data.items():
+                    self.scope_graph.plot(data['time_data'], data['waveform'], name=channel_name, pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), width=2)
+                
+                scope_legend.setBrush(pg.mkBrush(255, 255, 255, 200))
+                
+                self.print_message_to_output("Scope data fetched & plotted successfully!")
+                
+            except Exception as e:
+                self.print_message_to_output(str(e))
+            finally:
+                rtb.close()
+        else:
+            self.print_message_to_output("Error! No channels selected.")
+            
+    def load_last_used_directory(self):
+        # Load the last used directory from a JSON file
+        try:
+            with open('last_used_directory.json', 'r') as file:
+                data = json.load(file)
+                return data.get('last_directory', os.path.expanduser("~"))  # Default to home directory
+        except (FileNotFoundError, json.JSONDecodeError):
+            return os.path.expanduser("~")  # Default to home directory if file not found or invalid
+        
+    def save_last_used_directory(self, directory):
+        # Save the last used directory to a JSON file
+        with open('last_used_directory.json', 'w') as file:
+            json.dump({'last_directory': directory}, file)
+            
+    def scope_data_save(self):
+        if not self.scope_data:
+            return
+        
+        options = QFileDialog.Options()
+        output_directory, _ = QFileDialog.getSaveFileName(self, "Save CSV File", self.last_used_directory, "CSV Files (*.csv);;All Files (*)", options=options)
+        
+        if output_directory:
+            self.last_used_directory = os.path.dirname(output_directory)
+            self.save_last_used_directory(self.last_used_directory)
 
+            # Loop through the scope_data dictionary
+            for channel_name, data in self.scope_data.items():
+                # Create a CSV file name based on the channel name
+                csv_filename = f"{output_directory[:-4]}_{channel_name}.csv"
+    
+                # Save the DataFrame to a CSV file
+                data.to_csv(csv_filename, index=False)  # Set index=False to avoid writing row indices
+            
+        self.print_message_to_output('Data saved')
+        
     def start_acquisition(self):
-        self.accel_save()
-        #####
-        #     def start_acquisition(self):
-        # """Start the data acquisition in a new thread."""
-        # Set up the thread and worker
-        self.thread = QThread()
-        self.worker = DataAcquisitionWorker(port=self.port, baudrate=self.baudrate)
+        print('hi')
+        # self.accel_save()
+        # #####
+        # #     def start_acquisition(self):
+        # # """Start the data acquisition in a new thread."""
+        # # Set up the thread and worker
+        # self.thread = QThread()
+        # self.worker = DataAcquisitionWorker(port=self.port, baudrate=self.baudrate)
 
-        # Move the worker to the thread
-        self.worker.moveToThread(self.thread)
+        # # Move the worker to the thread
+        # self.worker.moveToThread(self.thread)
 
-        # Connect signals and slots
-        self.thread.started.connect(self.worker.run)
-        self.worker.data_ready.connect(self.update_plot)
-        self.worker.error_occurred.connect(self.print_message_to_output)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
+        # # Connect signals and slots
+        # self.thread.started.connect(self.worker.run)
+        # self.worker.data_ready.connect(self.update_plot)
+        # self.worker.error_occurred.connect(self.print_message_to_output)
+        # self.worker.finished.connect(self.thread.quit)
+        # self.worker.finished.connect(self.worker.deleteLater)
+        # self.thread.finished.connect(self.thread.deleteLater)
 
-        # Start the thread
-        self.thread.start()
+        # # Start the thread
+        # self.thread.start()
         ######
         # self.ser = serial.Serial(self.port, self.baudrate)
         # self.com_status = True
@@ -412,12 +471,13 @@ class MainWindow(QMainWindow):
         #             self.print_message_to_output(f"Error: {e}")
 
     def update_plot(self):
-        """Update the plot with new data."""
-        self.accel_time_data.append(time)
-        self.accel_g_value_data.append(g_value)
+        # """Update the plot with new data."""
+        # self.accel_time_data.append(time)
+        # self.accel_g_value_data.append(g_value)
 
-        self.accel_plot_widget.clear()
-        self.accel_plot_widget.plot(self.accel_time_data, self.accel_g_value_data, pen='r')
+        # self.accel_plot_widget.clear()
+        # self.accel_plot_widget.plot(self.accel_time_data, self.accel_g_value_data, pen='r')
+        print("hi")
         
     def stop_acquisition(self):
         # if self.ser.is_open:
