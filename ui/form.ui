@@ -12,8 +12,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1339</width>
-    <height>915</height>
+    <width>1259</width>
+    <height>744</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -27,7 +27,7 @@
   </property>
   <layout class="QGridLayout" name="gridLayout_7" rowstretch="0,0,0,0" columnstretch="3,0,0,0,0,10,10,10">
    <item row="0" column="5" rowspan="4" colspan="3">
-    <layout class="QVBoxLayout" name="right_box" stretch="10,10,2">
+    <layout class="QVBoxLayout" name="right_box" stretch="20,10,2">
      <item>
       <widget class="QGroupBox" name="scope_box">
        <property name="sizePolicy">

@@ -23,6 +23,7 @@ import os
 import threading
 
 import pyqtgraph as pg
+from scipy.fft import rfft, rfftfreq
 
 
 def loadUiWidget(uifilename, parent=None):
@@ -40,45 +41,33 @@ def loadUiWidget(uifilename, parent=None):
         uifile.close()
     return ui
 
-class DataAcquisitionWorker(QObject):
-    data_ready = Signal(float, float)  # Signal to emit new data
-    error_occurred = Signal(str)       # Signal to emit error messages
-    finished = Signal()                # Signal to indicate the thread has finished
+class AccelerometerThread(QThread):
+    new_accel_data = Signal(float, float)  # Emit z acceleration & time data
 
     def __init__(self, port, baudrate):
         super().__init__()
-        self.port = port
-        self.baudrate = baudrate
-        self.com_status = True  # Control variable for stopping the loop
+        self.serial_port = serial.Serial(port, baudrate, timeout=1)
+        self.is_running = False
 
     def run(self):
-        """Function to be executed in a separate thread."""
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate)
-            self.com_status = True
-        except Exception as e:
-            self.error_occurred.emit(f"Error opening serial port: {e}")
-            return
+        while self.is_running:
+            try:
+                if self.serial_port.in_waiting:
+                    line_data = self.serial_port.readline().decode('utf-8').strip()
+                    
+                    if line_data:
+                        time_str, g_value_str = line_data.split(", ")
+                        time = float(time_str[1:])
+                        g_value = float(g_value_str[:-1])                        
+                        self.new_accel_data.emit(time, g_value)
 
-        while self.com_status:
-            if self.ser.is_open:
-                try:
-                    line_data = self.ser.readline().decode('utf-8').strip()
-                    time_str, g_value_str = line_data.split(", ")
-                    time = float(time_str[1:])
-                    g_value = float(g_value_str[:-1])
-                    self.data_ready.emit(time, g_value)
-                except Exception as e:
-                    self.error_occurred.emit(f"Error reading serial data: {e}")
-                    self.stop()
-
-        self.finished.emit()
+            except Exception as e:
+                print(f"Error reading from accelerometer: {e}")
 
     def stop(self):
-        """Stop the data acquisition."""
-        self.com_status = False
-        if self.ser and self.ser.is_open:
-            self.ser.close()
+        self.is_running = False
+        self.serial_port.close()
+        self.quit()
             
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -123,12 +112,48 @@ class MainWindow(QMainWindow):
         scope_parent_layout.replaceWidget(self.ui.scope_graphics_view, self.scope_graph)
         self.ui.scope_graphics_view.deleteLater()
         
-        # replacing the accelerometer graph object
+        self.scope_graph.showAxis('left', True)
+        self.scope_graph.showAxis('bottom', True)
+        self.scope_graph.showAxis('right', True)
+        self.scope_graph.showAxis('top', True)
+        # self.scope_graph.getAxis('top').setTicks([])  # Disable top ticks
+        # self.scope_graph.setLabel('left', 'voltage')
+        self.scope_graph.setLabel('bottom', 'Time (s)')
+        
+        # Accelerometer graph adjustments
         self.accel_graph = pg.PlotWidget()
         accel_parent_layout = self.ui.accel_graph.parent().layout()
         accel_parent_layout.replaceWidget(self.ui.accel_graph, self.accel_graph)
         self.ui.accel_graph.deleteLater()
         
+        self.accel_graph.showAxis('left', True)
+        self.accel_graph.showAxis('bottom', True)
+        self.accel_graph.showAxis('right', True)
+        self.accel_graph.showAxis('top', True)
+        self.accel_graph.setLabel('bottom', 'Time (s)')  
+        
+        self.curve_g = self.accel_graph.plot([], [], pen='r', name='g-value')
+        self.accel_graph.setXRange(0, 5000)
+        self.accel_graph.setYRange(-10, 10)        
+        
+        self.freq_text_item = pg.TextItem("First Frequency: N/A")
+        self.accel_graph.addItem(self.freq_text_item)
+        self.freq_text_item.setPos(13,10)
+        
+        # self.first_freq_item = self.accel_legend.addItem(pg.TextItem("First Frequency: N/A", anchor=(1, 0)), name='Peak Frequency')
+        # self.accel_legend.setPos(self.accel_graph.viewRange()[0][1], self.accel_graph.viewRange()[1][1])  # Top right corner         
+               
+        self.accel_thread = None
+        self.latest_peak_frequency = None
+        
+        # Set the time window for visualization
+        self.time_window = 5000  # using 5 sec of data
+        self.time_data = np.array([]) 
+        self.g_values = np.array([])
+        self.accel_data = pd.DataFrame({"time": self.time_data, 
+                                       "g": self.g_values})
+        
+
         #############################################################################################
         ##   connections to GUI elements                                                           ##
         #############################################################################################
@@ -139,13 +164,13 @@ class MainWindow(QMainWindow):
         self.ui.scope_config_save_button.clicked.connect(self.save_scope_config) # oscilloscope config save button
         self.ui.accel_config_save_button.clicked.connect(self.accel_save) # accelerometer configuration save button
         self.ui.scope_fetch_button.clicked.connect(self.fetch_and_update_scope_data) # oscilloscope data fetch button
-        self.ui.scope_data_save_button.clicked.connect(self.scope_data_save)
-        self.ui.accel_fetch_button.clicked.connect(self.start_acquisition)
-        self.ui.accel_disconnect_button.clicked.connect(self.stop_acquisition)
-        self.ui.accel_save_button.clicked.connect(self.save_data_to_excel)
+        self.ui.scope_data_save_button.clicked.connect(self.scope_data_save)  # oscilloscope data save button
+        self.ui.accel_fetch_button.clicked.connect(self.accel_start_data_acquisition) # accelerometer connect button
+        self.ui.accel_disconnect_button.clicked.connect(self.accel_stop_data_acquisition) # accelerometer disconnect button
+        self.ui.accel_save_button.clicked.connect(self.accel_save_data) # accelerometer data save button
         
         #############################################################################################
-        ##   logos addition                                                           ##
+        ##   logos addition                                                                        ##
         #############################################################################################
         self.logo_scene = QGraphicsScene()
         self.ui.logo_space.setScene(self.logo_scene)
@@ -399,6 +424,7 @@ class MainWindow(QMainWindow):
             
     def scope_data_save(self):
         if not self.scope_data:
+            self.print_message_to_output("No data available to save!")
             return
         
         options = QFileDialog.Options()
@@ -418,115 +444,116 @@ class MainWindow(QMainWindow):
             
         self.print_message_to_output('Data saved')
         
-    def start_acquisition(self):
-        print('hi')
-        # self.accel_save()
-        # #####
-        # #     def start_acquisition(self):
-        # # """Start the data acquisition in a new thread."""
-        # # Set up the thread and worker
-        # self.thread = QThread()
-        # self.worker = DataAcquisitionWorker(port=self.port, baudrate=self.baudrate)
-
-        # # Move the worker to the thread
-        # self.worker.moveToThread(self.thread)
-
-        # # Connect signals and slots
-        # self.thread.started.connect(self.worker.run)
-        # self.worker.data_ready.connect(self.update_plot)
-        # self.worker.error_occurred.connect(self.print_message_to_output)
-        # self.worker.finished.connect(self.thread.quit)
-        # self.worker.finished.connect(self.worker.deleteLater)
-        # self.thread.finished.connect(self.thread.deleteLater)
-
-        # # Start the thread
-        # self.thread.start()
-        ######
-        # self.ser = serial.Serial(self.port, self.baudrate)
-        # self.com_status = True
-
-        # while self.com_status:
-        #     if self.ser.is_open:
-        #         try:
-        #             self.print_message_to_output("serial port connected!")
-
-        #             line_data = self.ser.readline().decode('utf-8').strip()
-        #             # if line_data:
-        #             #     print(f"Raw data read from serial: {line_data}")
-        #             # print(line_data)
-        #             # self.print_message_to_output(line_data)
-
-        #             time_str, g_value_str = line_data.split(", ")
-        #             time = float(time_str[1:])
-        #             g_value = float(g_value_str[:-1])
-
-        #             self.accel_time_data.append(time)
-        #             self.accel_g_value_data.append(g_value)
-
-        #             print(f"lengths: {len(self.accel_time_data)},{len(self.accel_g_value_data)}")
-
-        #             if len(self.accel_time_data) % 5 == 0:
-        #                 self.update_plot()
-        #         except Exception as e:
-        #             self.print_message_to_output(f"Error: {e}")
-
-    def update_plot(self):
-        # """Update the plot with new data."""
-        # self.accel_time_data.append(time)
-        # self.accel_g_value_data.append(g_value)
-
-        # self.accel_plot_widget.clear()
-        # self.accel_plot_widget.plot(self.accel_time_data, self.accel_g_value_data, pen='r')
-        print("hi")
-        
-    def stop_acquisition(self):
-        # if self.ser.is_open:
-        #     self.ser.close()
-        #     self.com_status = False
-        #     self.print_message_to_output("port closed")        
-        
-        if self.worker:
-            self.worker.stop()
-        
-    def save_data_to_excel(self):
-        if not (self.time_data and self.fft_data):
-            self.print_message_to_output("No data available to save.")
+    def accel_start_data_acquisition(self):
+        if not self.accel_save():
+            self.identify_and_print_devices("missing COM port information")
             return
-    
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"data_{timestamp}.xlsx"
-    
-        try:
-            with pd.ExcelWriter(filename) as writer:
-                # Save time series data
-                df_time = pd.DataFrame(self.time_data)
-                df_time.to_excel(writer, sheet_name='Time Data', index=False)
+        
+        # Reset variables
+        self.time_data = np.array([])  # Reset time data
+        self.g_values = np.array([])    # Reset g-values
+        
+        self.accel_data = pd.DataFrame({"time": self.time_data, 
+                                       "g": self.g_values})  # reset values
 
-                # Save FFT data
-                df_fft = pd.DataFrame(self.fft_data)
-                df_fft.to_excel(writer, sheet_name='FFT Data', index=False)
+        if self.accel_thread is None:
+            self.accel_thread = AccelerometerThread(port=self.port, baudrate=self.baudrate)
+            self.accel_thread.new_accel_data.connect(self.update_plot)
+            self.accel_thread.is_running = True
+            self.accel_thread.start()
+        
+        self.ui.accel_fetch_button.setEnabled(False)
+        self.ui.accel_disconnect_button.setEnabled(True)
+        
+    def accel_stop_data_acquisition(self):
+        if self.accel_thread:
+            self.accel_thread.stop()
+            self.accel_thread = None
+        
+        self.ui.accel_fetch_button.setEnabled(True)
+        self.ui.accel_disconnect_button.setEnabled(False)
+        
+    @Slot(float, float)
+    def update_plot(self, time_val, g_value):
+        # Append new data
+        new_data = pd.DataFrame({
+        "time": [time_val],
+        "g": [g_value]
+        })
+        
+        self.accel_data = pd.concat([self.accel_data, new_data], ignore_index=True)
+        
+        if max(self.accel_data['time']) - min(self.accel_data['time']) < self.time_window:
+            valid_data = self.accel_data
+        else:
+            threshold = time_val  - self.time_window
+            valid_data = self.accel_data[self.accel_data['time'] >= threshold] 
+        
+        self.curve_g.setData(valid_data["time"].values, valid_data['g'].values)
+        
+        self.accel_graph.setXRange(max(0, valid_data["time"].min()), time_val)
+        self.accel_graph.setYRange(valid_data["g"].min(), valid_data["g"].max())
+        
+        # FFT calculations
+        g_values = valid_data['g'].values
+        time_values = valid_data['time'].values
+        
+        if len(g_values) > 1:
+            # Compute the FFT of g_values
+            fft_values = np.fft.fft(g_values)
+            fft_magnitudes = np.abs(fft_values)
+            
+            n = len(g_values)
+            # Calculate time intervals based on the differences of time values
+            time_intervals = np.diff(time_values)  # Calculate differences
+            avg_time_interval = np.mean(time_intervals) / 1000.0  # Convert to seconds
+            
+            freqs = np.fft.fftfreq(n, d=avg_time_interval)  # Frequency bins
+            
+            # Ignore the zero-frequency (DC component)
+            fft_magnitudes[0] = 0
 
-            self.print_message_to_output(f"Data saved successfully as {filename}.")
-        except Exception as e:
-            self.print_message_to_output(f"Failed to save data: {e}")        
+            # Find peak frequency
+            peak_index = np.argmax(fft_magnitudes)
+            peak_freq = freqs[peak_index]
+            
+            print(f"Peak Frequency: {peak_freq:.2f} Hz")
+            
+            # Update legend text with the first peak frequency
+            self.freq_text_item.setText(f"First Frequency: {peak_freq:.2f} Hz")
+            x_range = self.accel_graph.viewRange()[0]  #-> [x_min, x_max]
+            y_range = self.accel_graph.viewRange()[1]  #-> [y_min, y_max]
+            self.freq_text_item.setPos(
+                x_range[0], 
+                y_range[1]
+                )
+              
+                    
+    def accel_save_data(self):
+        if len(self.accel_data) == 0:  # Check if g_values is empty
+            self.print_message_to_output("No data to save.")
+            return
+
+        options = QFileDialog.Options()
+        output_directory, _ = QFileDialog.getSaveFileName(self, "Save CSV File", self.last_used_directory, "CSV Files (*.csv);;All Files (*)", options=options)
+
+        if output_directory:
+            self.last_used_directory = os.path.dirname(output_directory)
+            self.save_last_used_directory(self.last_used_directory)
+
+            # Save the DataFrame to a CSV file
+            self.accel_data.to_csv(output_directory, index=False)
+            self.print_message_to_output("Data saved successfully.")      
         
     def closeEvent(self, event):
         """Handle the window close event to clean up resources."""
-        # Stop the animation if it's running
-        # if self.ani:
-        #     self.ani.event_source.stop()
-        
-        # Check if the serial port is open and close it
-        if self.ser and self.ser.is_open:
-            print("Closing serial port...")
-            self.ser.close()
-        
-        # Accept the close event
-        event.accept()                    
+        if self.accel_thread:
+            self.accel_thread.stop()
+        event.accept()                  
                 
 if __name__ == "__main__":
     import sys
     app = QApplication(sys.argv)
-    main_window = MainWindow() #loadUiWidget("form.ui")
+    main_window = MainWindow()
     main_window.show()
     sys.exit(app.exec())
