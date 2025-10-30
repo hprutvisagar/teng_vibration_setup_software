@@ -26,6 +26,7 @@ import pyqtgraph as pg
 from scipy.fft import rfft, rfftfreq
 
 
+
 def loadUiWidget(uifilename, parent=None):
     loader = QtUiTools.QUiLoader()
     uifile = QtCore.QFile(uifilename)
@@ -117,7 +118,7 @@ class MainWindow(QMainWindow):
         self.scope_graph.showAxis('right', True)
         self.scope_graph.showAxis('top', True)
         # self.scope_graph.getAxis('top').setTicks([])  # Disable top ticks
-        # self.scope_graph.setLabel('left', 'voltage')
+        self.scope_graph.setLabel('left', 'voltage (V)')
         self.scope_graph.setLabel('bottom', 'Time (s)')
         
         # Accelerometer graph adjustments
@@ -187,39 +188,43 @@ class MainWindow(QMainWindow):
         self.ui.imtek_logo.fitInView(self.imtek_logo_scene.sceneRect())
         
     def identify_and_print_devices(self):
-        resources = self.rm.list_resources()
-        resources = list(set(resources))  # Eliminate duplicates
-        
-        # Clear the table before populating it
-        self.ui.connected_devices_table.clearContents()
-        self.ui.connected_devices_table.setRowCount(len(resources))
-        self.ui.connected_devices_table.setColumnCount(2)
-        self.ui.connected_devices_table.setHorizontalHeaderLabels(["Resource ID", "Resource Identification"])
-        self.ui.connected_devices_table.setColumnWidth(0, 200)
+        resources = list(set(self.rm.list_resources()))
 
-        # Set the second column to take up the remaining space
+        # Clear and prep table
+        self.ui.connected_devices_table.clearContents()
+        self.ui.connected_devices_table.setColumnCount(2)
+        self.ui.connected_devices_table.setHorizontalHeaderLabels(["Resource ID", "Device Name"])
         self.ui.connected_devices_table.horizontalHeader().setStretchLastSection(True)
 
         identified_resources = []
 
         for resource in resources:
-            close_resource = True
             try:
-                self.instrument = self.rm.open_resource(resource)
-                idn_string = self.instrument.query("*IDN?")
-                if idn_string.strip():  # Ensure IDN string is not empty
-                    identified_resources.append((resource, idn_string))
-                    close_resource = False
-            
+                instr = self.rm.open_resource(resource)
+                idn_string = instr.query("*IDN?").strip()
+                if idn_string:
+                    idn_parts = [part.strip() for part in idn_string.split(',')]
+                    device_name = f"{idn_parts[0]} {idn_parts[1]}" if len(idn_parts) > 1 else idn_string
+                    identified_resources.append((resource, device_name))
             except Exception as e:
-                print(f"Error with resource {resource}: {str(e)}")
-            
+                print(f"Error with resource {resource}: {e}")
             finally:
-                if close_resource:
-                    try:
-                        self.instrument.close()
-                    except Exception as e:
-                        self.print_message_to_output(f"Failed to close resource {resource}: {str(e)}")
+                try:
+                    instr.close()
+                except Exception:
+                    pass
+
+        # Fill table
+        self.ui.connected_devices_table.setRowCount(len(identified_resources))
+        for row, (resource, device_name) in enumerate(identified_resources):
+            self.ui.connected_devices_table.setItem(row, 0, QTableWidgetItem(resource))
+            self.ui.connected_devices_table.setItem(row, 1, QTableWidgetItem(device_name))
+
+        # Resize nicely
+        header = self.ui.connected_devices_table.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+
 
         if not identified_resources:
             self.print_message_to_output("No identifiable devices connected")
@@ -237,6 +242,9 @@ class MainWindow(QMainWindow):
                 idn_item = QTableWidgetItem(idn_string)
                 idn_item.setFlags(idn_item.flags() & ~Qt.ItemIsEditable)  # Make the item non-editable
                 self.ui.connected_devices_table.setItem(row, 1, idn_item)
+        
+        # Automatically resize columns to fit text
+        self.ui.connected_devices_table.resizeColumnsToContents()
 
         self.print_message_to_output("Resources identification completed!")
         
@@ -354,6 +362,11 @@ class MainWindow(QMainWindow):
             try:
                 # Step 2: Connect to oscilloscope
                 rtb = RsInstrument(self.scope_id, True, True)
+                
+                # Turn all channels off first
+                for i in range(1, 5):
+                    rtb.write_str(f"CHAN{i}:STAT OFF")
+                    
                 rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
                 
                 # step 3: fetch selected data
@@ -373,7 +386,7 @@ class MainWindow(QMainWindow):
                         rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")                        
                         rtb.query_opc()
                         
-                        rtb.write_str_with_opc("SINGle", 3000)
+                        rtb.write_str_with_opc("SINGle", 15000)
                         
                         waveform = rtb.query_bin_or_ascii_float_list(f"FORM ASC;:CHAN{i}:DATA?")
                         
@@ -390,14 +403,27 @@ class MainWindow(QMainWindow):
                 
                 # Step 4: plot the data
                 self.scope_graph.clear()  # Clears the existing plots
-                
                 scope_legend = self.scope_graph.addLegend()
                 scope_legend.setPos(0,0)
                 
-                for channel_name, data in self.scope_data.items():
-                    self.scope_graph.plot(data['time_data'], data['waveform'], name=channel_name, pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), width=2)
+                # label = f"{channel_name} | Vpp = {vpp:.3f} V"
                 
-                scope_legend.setBrush(pg.mkBrush(255, 255, 255, 200))
+                for channel_name, data in self.scope_data.items():
+                    waveform = data['waveform']
+                    vpp = np.max(waveform) - np.min(waveform)
+                    vrms = np.sqrt(np.mean(np.square(waveform)))
+                    vavg = np.mean(waveform)
+                    
+                    label = f"{channel_name} | Vpp={vpp:.3f}V | Vrms={vrms:.3f}V | Vavg={vavg:.3f}V"
+                    
+                    self.scope_graph.plot(data['time_data'], 
+                                          data['waveform'], 
+                                          name=label, 
+                                          pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), 
+                                          width=2)
+                
+                scope_legend.setBrush(pg.mkBrush(255, 255, 255, 0))
+                scope_legend.setBrush(pg.mkPen(None))
                 
                 self.print_message_to_output("Scope data fetched & plotted successfully!")
                 
@@ -517,8 +543,6 @@ class MainWindow(QMainWindow):
             peak_index = np.argmax(fft_magnitudes)
             peak_freq = freqs[peak_index]
             
-            print(f"Peak Frequency: {peak_freq:.2f} Hz")
-            
             # Update legend text with the first peak frequency
             self.freq_text_item.setText(f"First Frequency: {peak_freq:.2f} Hz")
             x_range = self.accel_graph.viewRange()[0]  #-> [x_min, x_max]
@@ -553,6 +577,9 @@ class MainWindow(QMainWindow):
                 
 if __name__ == "__main__":
     import sys
+    from PySide6.QtCore import Qt, QCoreApplication
+    
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
