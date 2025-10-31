@@ -405,8 +405,7 @@ class MainWindow(QMainWindow):
                 self.scope_graph.clear()  # Clears the existing plots
                 scope_legend = self.scope_graph.addLegend()
                 scope_legend.setPos(0,0)
-                
-                # label = f"{channel_name} | Vpp = {vpp:.3f} V"
+                # scope_legend.LabelTextSize('12')
                 
                 for channel_name, data in self.scope_data.items():
                     waveform = data['waveform']
@@ -414,16 +413,15 @@ class MainWindow(QMainWindow):
                     vrms = np.sqrt(np.mean(np.square(waveform)))
                     vavg = np.mean(waveform)
                     
-                    label = f"{channel_name} | Vpp={vpp:.3f}V | Vrms={vrms:.3f}V | Vavg={vavg:.3f}V"
+                    label = f"{channel_name} | Vpp = {vpp:.3f} V"
+                    
+                    # label = f"{channel_name} | Vpp={vpp:.3f}V | Vrms={vrms:.3f}V | Vavg={vavg:.3f}V"
                     
                     self.scope_graph.plot(data['time_data'], 
                                           data['waveform'], 
                                           name=label, 
                                           pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), 
                                           width=2)
-                
-                scope_legend.setBrush(pg.mkBrush(255, 255, 255, 0))
-                scope_legend.setBrush(pg.mkPen(None))
                 
                 self.print_message_to_output("Scope data fetched & plotted successfully!")
                 
