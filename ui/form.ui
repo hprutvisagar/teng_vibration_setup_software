@@ -487,7 +487,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                   </font>
                  </property>
                  <property name="text">
-                  <string>X RANGE</string>
+                  <string>X RANGE (s)</string>
                  </property>
                 </widget>
                </item>
@@ -528,7 +528,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                   </font>
                  </property>
                  <property name="text">
-                  <string>Y RANGE</string>
+                  <string>Y RANGE (v)</string>
                  </property>
                 </widget>
                </item>
@@ -907,7 +907,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </font>
                </property>
                <property name="text">
-                <string>FREQ</string>
+                <string>FREQ (hz)</string>
                </property>
               </widget>
              </item>
@@ -948,7 +948,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </font>
                </property>
                <property name="text">
-                <string>Vpp</string>
+                <string>Vpp (v)</string>
                </property>
               </widget>
              </item>

@@ -386,7 +386,7 @@ class MainWindow(QMainWindow):
                         rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")                        
                         rtb.query_opc()
                         
-                        rtb.write_str_with_opc("SINGle", 15000)
+                        rtb.write_str_with_opc("SINGle", (3000+int(self.scope_xrange)*1000))
                         
                         waveform = rtb.query_bin_or_ascii_float_list(f"FORM ASC;:CHAN{i}:DATA?")
                         
