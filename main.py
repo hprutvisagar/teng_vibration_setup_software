@@ -360,70 +360,147 @@ class MainWindow(QMainWindow):
             
         if sum(channels) > 0:
             try:
-                # Step 2: Connect to oscilloscope
+                # Step 1: Global Setup
+                
                 rtb = RsInstrument(self.scope_id, True, True)
+                rtb.visa_timeout = int(3000 + float(self.scope_xrange) * 1000)
                 
-                # Turn all channels off first
-                for i in range(1, 5):
-                    rtb.write_str(f"CHAN{i}:STAT OFF")
-                    
-                rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+                # Turn all analog channels off to start fresh [1]
+                rtb.write_str("CHAN:AOFF") 
+                rtb.write_str(f"TIM:ACQT {self.scope_xrange}") # Set acquisition time [3]
                 
-                # step 3: fetch selected data
+                # Step 2: Configure all desired channels
+                active_channels = []
                 for i, ch in enumerate(channels, start=1):
                     if ch:
-                        rtb.write_str(f"CHAN{i}:RANG {self.scope_yrange}")
-                        rtb.write_str(f"CHAN{i}:OFFS 0.0")
-                        rtb.write_str(f"CHAN{i}:COUP ACL")
-                        rtb.write_str(f"CHAN{i}:STAT ON") 
-                        
-                        rtb.write_str(f"PROBe{i}:SETup:ATTenuation:UNIT V")  # probe set to 1:1 attenuation factor
+                        rtb.write_str(f"CHAN{i}:RANG {self.scope_yrange}") # Set vertical range [4]
+                        rtb.write_str(f"CHAN{i}:OFFS 0.0") # Set vertical offset [5]
+                        rtb.write_str(f"CHAN{i}:COUP ACL") # Set AC coupling [6]
+                        rtb.write_str(f"CHAN{i}:STAT ON")  # Turn channel ON [1]
+
+                        rtb.write_str(f"PROBe{i}:SETup:ATTenuation:UNIT V")
                         rtb.write_str(f'PROBe{i}:SETup:ATTenuation:MANual 1.0')
+                        active_channels.append(i)
                         
-                        rtb.write_str(f"TRIG:A:MODE AUTO")
-                        rtb.write_str(f"TRIG:A:TYPE EDGE;:TRIG:A:EDGE:SLOP POS")
-                        rtb.write_str(f"TRIG:A:SOUR CH{i}")
-                        rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")                        
-                        rtb.query_opc()
-                        
-                        rtb.write_str_with_opc("SINGle", (3000+int(self.scope_xrange)*1000))
-                        
-                        waveform = rtb.query_bin_or_ascii_float_list(f"FORM ASC;:CHAN{i}:DATA?")
-                        
-                        # waveform = float(rtb.query(f'CHAN{i}:DATA?'))
-                        x_increment = float(rtb.query(f"CHAN{i}:DATA:XINC?"))
-                        x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-                        time_data = np.arange(0, len(waveform)) * x_increment + x_origin
-                        
-                        self.scope_data[f'Channel_{i}'] = pd.DataFrame({
-                            'time_data': time_data,
-                            'waveform': waveform,
-                            })
+                # Step 3: Configure Trigger (Perform this once for the entire acquisition)
+                # Using the first active channel as the trigger source as an example [2]
+                if active_channels:
+                    trigger_ch = active_channels[0]
+                    rtb.write_str(f"TRIG:A:MODE AUTO")
+                    rtb.write_str(f"TRIG:A:TYPE EDGE")
+                    rtb.write_str(f"TRIG:A:EDGE:SLOP POS")
+                    rtb.write_str(f"TRIG:A:SOUR CH{trigger_ch}")
+                    rtb.write_str(f"TRIG:A:LEV{trigger_ch} {self.scope_trigger_pos}")
+                    
+                # Step 4: Perform ONE single acquisition for all channels [10]
+                # This captures data for all ON channels at the exact same time
+                # timeout = (3000 + float(self.scope_xrange) * 1000)
+                
+                rtb.write_str("SINGle")
+                rtb.query("*OPC?") 
+                
+                # Step 5: Fetch data for each active channel from memory [11]
+                rtb.write_str("FORM ASC")
+                for i in active_channels:
+                    # Query waveform data using ASCII format [11, 12]
+                    waveform = rtb.query_bin_or_ascii_float_list(f":CHAN{i}:DATA?")
+
+                    # Query parameters for time-axis calculation [13, 14]
+                    x_increment = float(rtb.query(f"CHAN{i}:DATA:XINC?"))
+                    x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+
+                    time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+
+                    self.scope_data[f'Channel_{i}'] = pd.DataFrame({
+                        'time_data': time_data,
+                        'waveform': waveform,
+                    })
+                    
                 rtb.close()
                 
-                # Step 4: plot the data
-                self.scope_graph.clear()  # Clears the existing plots
+                # Step 6: Plot the time-aligned data
+                self.scope_graph.clear()
                 scope_legend = self.scope_graph.addLegend()
                 scope_legend.setPos(0,0)
-                # scope_legend.LabelTextSize('12')
-                
+
                 for channel_name, data in self.scope_data.items():
                     waveform = data['waveform']
                     vpp = np.max(waveform) - np.min(waveform)
-                    vrms = np.sqrt(np.mean(np.square(waveform)))
-                    vavg = np.mean(waveform)
-                    
                     label = f"{channel_name} | Vpp = {vpp:.3f} V"
-                    
-                    # label = f"{channel_name} | Vpp={vpp:.3f}V | Vrms={vrms:.3f}V | Vavg={vavg:.3f}V"
-                    
+
+                    # Use the channel index to select color
+                    ch_idx = int(channel_name.split("_")[1])
                     self.scope_graph.plot(data['time_data'], 
                                           data['waveform'], 
                                           name=label, 
-                                          pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), 
-                                          width=2)
+                                          pen=pg.mkPen(colors[ch_idx - 1], width=2))
+
+                self.print_message_to_output("Multiple channels fetched & plotted successfully!")
                 
-                self.print_message_to_output("Scope data fetched & plotted successfully!")
+                # # Step 2: Connect to oscilloscope
+                # rtb = RsInstrument(self.scope_id, True, True)
+                
+                # # Turn all channels off first
+                # for i in range(1, 5):
+                #     rtb.write_str(f"CHAN{i}:STAT OFF")
+                    
+                # rtb.write_str(f"TIM:ACQT {self.scope_xrange}")
+                
+                # # step 3: fetch selected data
+                # for i, ch in enumerate(channels, start=1):
+                #     if ch:
+                #         rtb.write_str(f"CHAN{i}:RANG {self.scope_yrange}")
+                #         rtb.write_str(f"CHAN{i}:OFFS 0.0")
+                #         rtb.write_str(f"CHAN{i}:COUP ACL")
+                #         rtb.write_str(f"CHAN{i}:STAT ON") 
+                        
+                #         rtb.write_str(f"PROBe{i}:SETup:ATTenuation:UNIT V")  # probe set to 1:1 attenuation factor
+                #         rtb.write_str(f'PROBe{i}:SETup:ATTenuation:MANual 1.0')
+                        
+                #         rtb.write_str(f"TRIG:A:MODE AUTO")
+                #         rtb.write_str(f"TRIG:A:TYPE EDGE;:TRIG:A:EDGE:SLOP POS")
+                #         rtb.write_str(f"TRIG:A:SOUR CH{i}")
+                #         rtb.write_str(f"TRIG:A:LEV1 {self.scope_trigger_pos}")                        
+                #         rtb.query_opc()
+                        
+                #         rtb.write_str_with_opc("SINGle", (3000+float(self.scope_xrange)*1000))
+                        
+                #         waveform = rtb.query_bin_or_ascii_float_list(f"FORM ASC;:CHAN{i}:DATA?")
+                        
+                #         # waveform = float(rtb.query(f'CHAN{i}:DATA?'))
+                #         x_increment = float(rtb.query(f"CHAN{i}:DATA:XINC?"))
+                #         x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
+                #         time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                        
+                #         self.scope_data[f'Channel_{i}'] = pd.DataFrame({
+                #             'time_data': time_data,
+                #             'waveform': waveform,
+                #             })
+                # rtb.close()
+                
+                # # Step 4: plot the data
+                # self.scope_graph.clear()  # Clears the existing plots
+                # scope_legend = self.scope_graph.addLegend()
+                # scope_legend.setPos(0,0)
+                # # scope_legend.LabelTextSize('12')
+                
+                # for channel_name, data in self.scope_data.items():
+                #     waveform = data['waveform']
+                #     vpp = np.max(waveform) - np.min(waveform)
+                #     vrms = np.sqrt(np.mean(np.square(waveform)))
+                #     vavg = np.mean(waveform)
+                    
+                #     label = f"{channel_name} | Vpp = {vpp:.3f} V"
+                    
+                #     # label = f"{channel_name} | Vpp={vpp:.3f}V | Vrms={vrms:.3f}V | Vavg={vavg:.3f}V"
+                    
+                #     self.scope_graph.plot(data['time_data'], 
+                #                           data['waveform'], 
+                #                           name=label, 
+                #                           pen = pg.mkPen(colors[int(channel_name.split("_")[1]) - 1], width=2), 
+                #                           width=2)
+                
+                # self.print_message_to_output("Scope data fetched & plotted successfully!")
                 
             except Exception as e:
                 self.print_message_to_output(str(e))
@@ -450,23 +527,61 @@ class MainWindow(QMainWindow):
         if not self.scope_data:
             self.print_message_to_output("No data available to save!")
             return
-        
+
         options = QFileDialog.Options()
-        output_directory, _ = QFileDialog.getSaveFileName(self, "Save CSV File", self.last_used_directory, "CSV Files (*.csv);;All Files (*)", options=options)
-        
-        if output_directory:
-            self.last_used_directory = os.path.dirname(output_directory)
+        output_file, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Save CSV File", 
+            self.last_used_directory, 
+            "CSV Files (*.csv);;All Files (*)", 
+            options=options
+        )
+
+        if output_file:
+            self.last_used_directory = os.path.dirname(output_file)
             self.save_last_used_directory(self.last_used_directory)
 
-            # Loop through the scope_data dictionary
+            merged_df = None
+
             for channel_name, data in self.scope_data.items():
-                # Create a CSV file name based on the channel name
-                csv_filename = f"{output_directory[:-4]}_{channel_name}.csv"
+                df = data.copy()
+
+                # Rename waveform column to channel name
+                df = df.rename(columns={
+                    'waveform': channel_name
+                })
+
+                if merged_df is None:
+                    merged_df = df
+                else:
+                    # Merge on time axis
+                    merged_df = pd.merge(merged_df, df, on='time_data', how='outer')
+
+            # Save combined dataframe
+            merged_df.to_csv(output_file, index=False)
+
+            self.print_message_to_output("Multi-channel data saved successfully.")
+        
+        # if not self.scope_data:
+        #     self.print_message_to_output("No data available to save!")
+        #     return
+        
+        # options = QFileDialog.Options()
+        # output_directory, _ = QFileDialog.getSaveFileName(self, "Save CSV File", self.last_used_directory, "CSV Files (*.csv);;All Files (*)", options=options)
+        
+        # if output_directory:
+        #     self.last_used_directory = os.path.dirname(output_directory)
+        #     self.save_last_used_directory(self.last_used_directory)
+
+        #     # Loop through the scope_data dictionary
+        #     for channel_name, data in self.scope_data.items():
+        #         # Create a CSV file name based on the channel name
+        #         csv_filename = f"{output_directory[:-4]}.csv"
     
-                # Save the DataFrame to a CSV file
-                data.to_csv(csv_filename, index=False)  # Set index=False to avoid writing row indices
+        #         # Save the DataFrame to a CSV file
+        #         data.to_csv(csv_filename, index=False) 
             
-        self.print_message_to_output('Data saved')
+        # self.print_message_to_output('Data saved')
         
     def accel_start_data_acquisition(self):
         if not self.accel_save():
