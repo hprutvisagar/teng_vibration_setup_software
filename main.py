@@ -356,7 +356,7 @@ class MainWindow(QMainWindow):
             ]
         
         self.scope_data = {}
-        colors = ['blue', 'green', 'red', 'purple']
+        colors = ['yellow', 'green', 'orange', 'blue']
             
         if sum(channels) > 0:
             try:
@@ -383,7 +383,6 @@ class MainWindow(QMainWindow):
                         active_channels.append(i)
                         
                 # Step 3: Configure Trigger (Perform this once for the entire acquisition)
-                # Using the first active channel as the trigger source as an example [2]
                 if active_channels:
                     trigger_ch = active_channels[0]
                     rtb.write_str(f"TRIG:A:MODE AUTO")
@@ -394,22 +393,18 @@ class MainWindow(QMainWindow):
                     
                 # Step 4: Perform ONE single acquisition for all channels [10]
                 # This captures data for all ON channels at the exact same time
-                # timeout = (3000 + float(self.scope_xrange) * 1000)
                 
                 rtb.write_str("SINGle")
                 rtb.query("*OPC?") 
-                
+
                 # Step 5: Fetch data for each active channel from memory [11]
                 rtb.write_str("FORM ASC")
                 for i in active_channels:
-                    # Query waveform data using ASCII format [11, 12]
                     waveform = rtb.query_bin_or_ascii_float_list(f":CHAN{i}:DATA?")
-
-                    # Query parameters for time-axis calculation [13, 14]
+                    num_points = len(waveform)
                     x_increment = float(rtb.query(f"CHAN{i}:DATA:XINC?"))
                     x_origin = float(rtb.query(f'CHAN{i}:DATA:XOR?'))
-
-                    time_data = np.arange(0, len(waveform)) * x_increment + x_origin
+                    time_data = np.arange(0, num_points) * x_increment + x_origin
 
                     self.scope_data[f'Channel_{i}'] = pd.DataFrame({
                         'time_data': time_data,
@@ -421,7 +416,10 @@ class MainWindow(QMainWindow):
                 # Step 6: Plot the time-aligned data
                 self.scope_graph.clear()
                 scope_legend = self.scope_graph.addLegend()
+                scope_legend.setBrush(pg.mkBrush(0, 0, 0, 255))
+                scope_legend.setPen(pg.mkPen('white'))
                 scope_legend.setPos(0,0)
+            
 
                 for channel_name, data in self.scope_data.items():
                     waveform = data['waveform']
